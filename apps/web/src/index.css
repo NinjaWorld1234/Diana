@@ -1,0 +1,350 @@
+@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@300;400;500;600;700&display=swap');
+@import "tailwindcss";
+
+/* ─── Design Tokens (Dark — Default) ───────────────────── */
+:root {
+  --color-primary: #3B82F6;
+  --color-primary-dark: #2563EB;
+  --color-secondary: #8B5CF6;
+  --color-accent: #06B6D4;
+  --color-success: #10B981;
+  --color-warning: #F59E0B;
+  --color-danger: #EF4444;
+  --color-bg: #0F172A;
+  --color-bg-secondary: #1E293B;
+  --color-bg-card: #1E293B;
+  --color-bg-hover: #334155;
+  --color-text: #F1F5F9;
+  --color-text-secondary: #94A3B8;
+  --color-text-muted: #64748B;
+  --color-border: #334155;
+  --color-shadow: rgba(0, 0, 0, 0.4);
+  --glass-bg: rgba(30, 41, 59, 0.8);
+  --glass-border: rgba(51, 65, 85, 0.5);
+  --glass-hover-shadow: rgba(59, 130, 246, 0.15);
+  --animated-bg-1: #0F172A;
+  --animated-bg-2: #1E293B;
+  --animated-bg-3: #0F172A;
+  --animated-bg-4: #1a1a3e;
+  --header-bg: rgba(15, 23, 42, 0.7);
+  --flow-controls-bg: rgba(15, 23, 42, 0.9);
+  --radius: 12px;
+  --radius-sm: 8px;
+  --radius-lg: 16px;
+  --radius-full: 50px;
+  --font-ar: 'IBM Plex Sans Arabic', 'Noto Sans Arabic', 'Segoe UI', Tahoma, sans-serif;
+  color-scheme: dark;
+}
+
+/* ─── Design Tokens (Light) ────────────────────────────── */
+[data-theme="light"] {
+  --color-primary: #2563EB;
+  --color-primary-dark: #1D4ED8;
+  --color-secondary: #7C3AED;
+  --color-accent: #0891B2;
+  --color-success: #059669;
+  --color-warning: #D97706;
+  --color-danger: #DC2626;
+  --color-bg: #F8FAFC;
+  --color-bg-secondary: #FFFFFF;
+  --color-bg-card: #FFFFFF;
+  --color-bg-hover: #F1F5F9;
+  --color-text: #0F172A;
+  --color-text-secondary: #475569;
+  --color-text-muted: #94A3B8;
+  --color-border: #E2E8F0;
+  --color-shadow: rgba(0, 0, 0, 0.08);
+  --glass-bg: rgba(255, 255, 255, 0.85);
+  --glass-border: rgba(226, 232, 240, 0.8);
+  --glass-hover-shadow: rgba(59, 130, 246, 0.1);
+  --animated-bg-1: #EFF6FF;
+  --animated-bg-2: #F8FAFC;
+  --animated-bg-3: #EFF6FF;
+  --animated-bg-4: #F0F4FF;
+  --header-bg: rgba(255, 255, 255, 0.85);
+  --flow-controls-bg: rgba(255, 255, 255, 0.95);
+  color-scheme: light;
+}
+
+/* ─── Global ────────────────────────────────────────────── */
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html {
+  direction: rtl;
+  font-family: var(--font-ar);
+  scroll-behavior: smooth;
+}
+
+body {
+  background: var(--color-bg);
+  color: var(--color-text);
+  line-height: 1.7;
+  min-height: 100vh;
+  -webkit-font-smoothing: antialiased;
+  transition: background-color 0.3s ease, color 0.3s ease;
+}
+
+/* ─── Scrollbar ─────────────────────────────────────────── */
+::-webkit-scrollbar {
+  width: 6px;
+}
+::-webkit-scrollbar-track {
+  background: var(--color-bg-secondary);
+}
+::-webkit-scrollbar-thumb {
+  background: var(--color-border);
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--color-text-muted);
+}
+
+/* ─── Glass Card ────────────────────────────────────────── */
+.glass-card {
+  background: var(--glass-bg);
+  backdrop-filter: blur(16px);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius);
+  transition: all 0.3s ease;
+}
+.glass-card:hover {
+  border-color: var(--color-primary);
+  box-shadow: 0 0 20px var(--glass-hover-shadow);
+}
+
+/* ─── Gradient Text ─────────────────────────────────────── */
+.gradient-text {
+  background: linear-gradient(135deg, var(--color-primary), var(--color-secondary), var(--color-accent));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* ─── Animated Background ───────────────────────────────── */
+.animated-bg {
+  background: linear-gradient(-45deg, var(--animated-bg-1), var(--animated-bg-2), var(--animated-bg-3), var(--animated-bg-4));
+  background-size: 400% 400%;
+  animation: gradientShift 15s ease infinite;
+}
+
+@keyframes gradientShift {
+  0% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+
+/* ─── Pulse Glow ────────────────────────────────────────── */
+.pulse-glow {
+  animation: pulseGlow 2s ease-in-out infinite;
+}
+
+@keyframes pulseGlow {
+  0%, 100% { box-shadow: 0 0 5px rgba(59, 130, 246, 0.3); }
+  50% { box-shadow: 0 0 20px rgba(59, 130, 246, 0.6); }
+}
+
+/* ─── Button Styles ─────────────────────────────────────── */
+.btn-primary {
+  background: linear-gradient(135deg, var(--color-primary), var(--color-primary-dark));
+  color: white;
+  border: none;
+  border-radius: var(--radius-sm);
+  padding: 12px 24px;
+  font-family: var(--font-ar);
+  font-weight: 600;
+  font-size: 1rem;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+.btn-primary:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 25px rgba(59, 130, 246, 0.4);
+}
+.btn-primary:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
+}
+
+.btn-secondary {
+  background: transparent;
+  color: var(--color-primary);
+  border: 2px solid var(--color-primary);
+  border-radius: var(--radius-sm);
+  padding: 10px 22px;
+  font-family: var(--font-ar);
+  font-weight: 600;
+  font-size: 1rem;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+.btn-secondary:hover {
+  background: rgba(59, 130, 246, 0.1);
+  transform: translateY(-1px);
+}
+
+/* ─── Input Styles ──────────────────────────────────────── */
+.input-field {
+  width: 100%;
+  background: var(--color-bg);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  padding: 12px 16px;
+  color: var(--color-text);
+  font-family: var(--font-ar);
+  font-size: 1rem;
+  transition: border-color 0.2s, background-color 0.3s;
+  direction: rtl;
+}
+.input-field:focus {
+  outline: none;
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.15);
+}
+
+/* ─── Node Status Colors ────────────────────────────────── */
+.node-locked { opacity: 0.5; filter: grayscale(0.5); }
+.node-active { border-color: var(--color-primary) !important; }
+.node-completed { border-color: var(--color-success) !important; }
+
+/* ─── React Flow Overrides ──────────────────────────────── */
+.react-flow__node {
+  direction: rtl;
+}
+.react-flow__attribution {
+  display: none !important;
+}
+
+/* ─── React Flow Controls (Zoom Buttons) ────────────────── */
+.react-flow__controls {
+  background: var(--flow-controls-bg) !important;
+  backdrop-filter: blur(12px);
+  border: 1px solid var(--color-border) !important;
+  border-radius: 12px !important;
+  box-shadow: 0 8px 32px var(--color-shadow) !important;
+  overflow: hidden;
+  bottom: 16px !important;
+  left: 16px !important;
+}
+
+.react-flow__controls-button {
+  background: transparent !important;
+  border: none !important;
+  border-bottom: 1px solid var(--color-border) !important;
+  width: 40px !important;
+  height: 40px !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  cursor: pointer !important;
+  transition: all 0.2s ease !important;
+}
+
+.react-flow__controls-button:last-child {
+  border-bottom: none !important;
+}
+
+.react-flow__controls-button:hover {
+  background: rgba(59, 130, 246, 0.15) !important;
+}
+
+.react-flow__controls-button svg {
+  fill: var(--color-text) !important;
+  width: 16px !important;
+  height: 16px !important;
+}
+
+.react-flow__controls-button:hover svg {
+  fill: var(--color-primary) !important;
+}
+
+/* ─── Theme Toggle Button ──────────────────────────────── */
+.theme-toggle {
+  position: relative;
+  width: 52px;
+  height: 28px;
+  border-radius: 14px;
+  background: var(--color-bg-hover);
+  border: 1px solid var(--color-border);
+  cursor: pointer;
+  transition: all 0.3s ease;
+  padding: 0;
+}
+
+.theme-toggle-knob {
+  position: absolute;
+  top: 3px;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: var(--color-primary);
+  transition: all 0.3s cubic-bezier(0.68, -0.55, 0.27, 1.55);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+:root .theme-toggle-knob {
+  right: 3px;
+}
+
+[data-theme="light"] .theme-toggle-knob {
+  right: 27px;
+}
+
+[data-theme="light"] .theme-toggle {
+  background: #DBEAFE;
+  border-color: #93C5FD;
+}
+
+/* ─── Animations ────────────────────────────────────────── */
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.animate-fade-in {
+  animation: fadeIn 0.5s ease forwards;
+}
+
+@keyframes slideInRight {
+  from { opacity: 0; transform: translateX(-30px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+.animate-slide-in {
+  animation: slideInRight 0.5s ease forwards;
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+/* ─── Progress Ring ─────────────────────────────────────── */
+.progress-ring {
+  transform: rotate(-90deg);
+}
+.progress-ring circle {
+  transition: stroke-dashoffset 0.5s ease;
+}
+
+/* ─── Smooth Theme Transitions ─────────────────────────── */
+*, *::before, *::after {
+  transition-property: background-color, border-color, color, box-shadow;
+  transition-duration: 0s;
+}
+
+body, .glass-card, .input-field, .btn-primary, .btn-secondary,
+.theme-toggle, .react-flow__controls, .react-flow__controls-button,
+aside, main, header, nav, select, option {
+  transition-duration: 0.3s;
+  transition-timing-function: ease;
+}

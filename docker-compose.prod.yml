@@ -1,0 +1,60 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: pgvector/pgvector:pg16
+    container_name: diana-postgres-prod
+    restart: always
+    environment:
+      POSTGRES_USER: diana
+      POSTGRES_PASSWORD: diana_password
+      POSTGRES_DB: diana_db
+    volumes:
+      - diana_pgdata_prod:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U diana -d diana_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    container_name: diana-redis-prod
+    restart: always
+    volumes:
+      - diana_redis_prod:/data
+
+  api:
+    build:
+      context: .
+      target: api-runner
+    container_name: diana-api-prod
+    restart: always
+    environment:
+      - NODE_ENV=production
+      - DATABASE_URL=postgresql://diana:diana_password@postgres:5432/diana_db?schema=public
+      - REDIS_URL=redis://redis:6379
+      - JWT_SECRET=super_secret_jwt_key_secure_prod
+      - GEMINI_API_KEY=${GEMINI_API_KEY}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    # Wait for DB, migrate, seed, and start
+    command: /bin/sh -c "pnpm --filter api exec prisma migrate deploy && pnpm --filter api exec prisma db seed && pnpm --filter api start:prod"
+
+  web:
+    build:
+      context: .
+      target: web-runner
+    container_name: diana-web-prod
+    restart: always
+    ports:
+      - "80:80"
+    depends_on:
+      - api
+
+volumes:
+  diana_pgdata_prod:
+  diana_redis_prod:

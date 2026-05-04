@@ -1,0 +1,488 @@
+generator client {
+  provider        = "prisma-client-js"
+  previewFeatures = ["postgresqlExtensions"]
+}
+
+datasource db {
+  provider   = "postgresql"
+  url        = env("DATABASE_URL")
+  extensions = [vector]
+}
+
+// ─── Auth & Users ───────────────────────────────────────────
+
+enum Role {
+  STUDENT
+  TEACHER
+  ADMIN
+}
+
+model User {
+  id            String   @id @default(uuid())
+  email         String   @unique
+  name          String
+  passwordHash  String   @map("password_hash")
+  role          Role     @default(STUDENT)
+  avatarUrl     String?  @map("avatar_url")
+  isActive      Boolean  @default(true) @map("is_active")
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  progress      NodeProgress[]
+  attempts      QuestionAttempt[]
+  achievements  Achievement[]
+  aiSessions    AiSession[]
+  analyticsEvents AnalyticsEvent[]
+  auditLogs     AuditLog[]
+  calculatorRuns CalculatorRun[]
+
+  @@map("users")
+}
+
+// ─── Content Structure ──────────────────────────────────────
+
+model Unit {
+  id           String   @id @default(uuid())
+  titleAr      String   @map("title_ar")
+  descriptionAr String  @map("description_ar")
+  order        Int      @default(0)
+  isActive     Boolean  @default(true) @map("is_active")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  conceptNodes    ConceptNode[]
+  sourceDocuments SourceDocument[]
+
+  @@map("units")
+}
+
+model SourceDocument {
+  id       String @id @default(uuid())
+  filename String
+  type     String // PDF, DOCX, IMAGE
+  unitId   String @map("unit_id")
+
+  unit   Unit         @relation(fields: [unitId], references: [id])
+  pages  SourcePage[]
+
+  @@map("source_documents")
+}
+
+model SourcePage {
+  id           String @id @default(uuid())
+  pageNumber   Int    @map("page_number")
+  rawText      String @map("raw_text") @db.Text
+  documentId   String @map("document_id")
+
+  document     SourceDocument   @relation(fields: [documentId], references: [id])
+  contentChunks ContentChunk[]
+  formulas     Formula[]
+  figures      FigureReference[]
+  tables       TableReference[]
+  examples     WorkedExample[]
+
+  @@map("source_pages")
+}
+
+enum NodeStatus {
+  LOCKED
+  OPEN
+  COMPLETED
+}
+
+model ConceptNode {
+  id              String     @id @default(uuid())
+  titleAr         String     @map("title_ar")
+  descriptionAr   String     @map("description_ar") @db.Text
+  introductionAr  String     @map("introduction_ar") @db.Text
+  order           Int        @default(0)
+  unitId          String     @map("unit_id")
+  parentId        String?    @map("parent_id")
+  icon            String     @default("atom")
+  color           String     @default("#3B82F6")
+  needsReview     Boolean    @default(false) @map("needs_review")
+  isActive        Boolean    @default(true) @map("is_active")
+  createdAt       DateTime   @default(now()) @map("created_at")
+  updatedAt       DateTime   @updatedAt @map("updated_at")
+
+  unit            Unit           @relation(fields: [unitId], references: [id])
+  parent          ConceptNode?   @relation("NodeParent", fields: [parentId], references: [id])
+  children        ConceptNode[]  @relation("NodeParent")
+  subConcepts     SubConcept[]
+  contentChunks   ContentChunk[]
+  questions       Question[]
+  formulas        Formula[]
+  figures         FigureReference[]
+  tables          TableReference[]
+  examples        WorkedExample[]
+  remediationCards RemediationCard[]
+  miniGames       MiniGameDefinition[]
+  calculatorTemplates CalculatorTemplate[]
+  progress        NodeProgress[]
+  hints           Hint[]
+
+  @@map("concept_nodes")
+}
+
+model SubConcept {
+  id        String @id @default(uuid())
+  titleAr   String @map("title_ar")
+  contentAr String @map("content_ar") @db.Text
+  order     Int    @default(0)
+  nodeId    String @map("node_id")
+
+  node ConceptNode @relation(fields: [nodeId], references: [id])
+
+  @@map("sub_concepts")
+}
+
+enum ChunkType {
+  DEFINITION
+  EXPLANATION
+  EXAMPLE
+  ACTIVITY
+  NOTE
+  LAW
+}
+
+model ContentChunk {
+  id           String    @id @default(uuid())
+  textAr       String    @map("text_ar") @db.Text
+  type         ChunkType @default(EXPLANATION)
+  sourcePageId String?   @map("source_page_id")
+  nodeId       String    @map("node_id")
+  embedding    Unsupported("vector(768)")?
+  order        Int       @default(0)
+
+  sourcePage SourcePage?  @relation(fields: [sourcePageId], references: [id])
+  node       ConceptNode  @relation(fields: [nodeId], references: [id])
+
+  @@map("content_chunks")
+}
+
+model Formula {
+  id            String  @id @default(uuid())
+  expression    String
+  descriptionAr String  @map("description_ar")
+  nodeId        String  @map("node_id")
+  sourcePageId  String? @map("source_page_id")
+
+  node       ConceptNode @relation(fields: [nodeId], references: [id])
+  sourcePage SourcePage? @relation(fields: [sourcePageId], references: [id])
+
+  @@map("formulas")
+}
+
+model FigureReference {
+  id            String  @id @default(uuid())
+  figureNumber  Int     @map("figure_number")
+  captionAr     String  @map("caption_ar")
+  imageUrl      String? @map("image_url")
+  sourcePageId  String? @map("source_page_id")
+  nodeId        String  @map("node_id")
+
+  sourcePage SourcePage? @relation(fields: [sourcePageId], references: [id])
+  node       ConceptNode @relation(fields: [nodeId], references: [id])
+
+  @@map("figure_references")
+}
+
+model TableReference {
+  id           String  @id @default(uuid())
+  tableNumber  Int     @map("table_number")
+  captionAr    String  @map("caption_ar")
+  dataJson     Json    @map("data_json")
+  sourcePageId String? @map("source_page_id")
+  nodeId       String  @map("node_id")
+
+  sourcePage SourcePage? @relation(fields: [sourcePageId], references: [id])
+  node       ConceptNode @relation(fields: [nodeId], references: [id])
+
+  @@map("table_references")
+}
+
+model WorkedExample {
+  id              String @id @default(uuid())
+  problemAr       String @map("problem_ar") @db.Text
+  solutionStepsJson Json  @map("solution_steps_json")
+  nodeId          String @map("node_id")
+  sourcePageId    String? @map("source_page_id")
+
+  node       ConceptNode @relation(fields: [nodeId], references: [id])
+  sourcePage SourcePage? @relation(fields: [sourcePageId], references: [id])
+
+  @@map("worked_examples")
+}
+
+// ─── Questions & Assessment ─────────────────────────────────
+
+enum QuestionType {
+  MCQ
+  TRUE_FALSE
+  DRAG_DROP
+  ORDER
+  CLASSIFY
+  FILL_BLANK
+  MATCH
+  APPLY_LAW
+  INFERENCE
+  READ_TABLE
+  READ_GRAPH
+}
+
+enum QuestionLevel {
+  UNDERSTANDING
+  APPLICATION
+  REASONING
+}
+
+enum QuestionVariant {
+  PRIMARY
+  ALTERNATIVE
+  REMEDIAL
+  MASTERY
+}
+
+model Question {
+  id          String          @id @default(uuid())
+  textAr      String          @map("text_ar") @db.Text
+  type        QuestionType    @default(MCQ)
+  level       QuestionLevel
+  variant     QuestionVariant @default(PRIMARY)
+  nodeId      String          @map("node_id")
+  points      Int             @default(10)
+  explanationAr String?       @map("explanation_ar") @db.Text
+  isActive    Boolean         @default(true) @map("is_active")
+  order       Int             @default(0)
+
+  node     ConceptNode      @relation(fields: [nodeId], references: [id])
+  options  QuestionOption[]
+  attempts QuestionAttempt[]
+
+  @@map("questions")
+}
+
+model QuestionOption {
+  id            String  @id @default(uuid())
+  textAr        String  @map("text_ar")
+  isCorrect     Boolean @default(false) @map("is_correct")
+  explanationAr String? @map("explanation_ar")
+  order         Int     @default(0)
+  questionId    String  @map("question_id")
+
+  question Question        @relation(fields: [questionId], references: [id])
+  attempts QuestionAttempt[]
+
+  @@map("question_options")
+}
+
+model Hint {
+  id         String @id @default(uuid())
+  textAr     String @map("text_ar") @db.Text
+  type       String // DEFINITION, COMPARISON, REPHRASING, SOLVED_EXAMPLE, PROCEDURE, CAUSAL, THOUGHT_QUESTION
+  costPoints Int    @default(2) @map("cost_points")
+  nodeId     String @map("node_id")
+  level      QuestionLevel
+
+  node ConceptNode @relation(fields: [nodeId], references: [id])
+
+  @@map("hints")
+}
+
+model RemediationCard {
+  id        String        @id @default(uuid())
+  titleAr   String        @map("title_ar")
+  contentAr String        @map("content_ar") @db.Text
+  level     QuestionLevel
+  nodeId    String        @map("node_id")
+
+  node ConceptNode @relation(fields: [nodeId], references: [id])
+
+  @@map("remediation_cards")
+}
+
+// ─── Student Progress ───────────────────────────────────────
+
+model QuestionAttempt {
+  id               String   @id @default(uuid())
+  userId           String   @map("user_id")
+  questionId       String   @map("question_id")
+  selectedOptionId String?  @map("selected_option_id")
+  textAnswer       String?  @map("text_answer")
+  isCorrect        Boolean  @map("is_correct")
+  hintsUsed        Int      @default(0) @map("hints_used")
+  timeSeconds      Int      @default(0) @map("time_seconds")
+  createdAt        DateTime @default(now()) @map("created_at")
+
+  user           User            @relation(fields: [userId], references: [id])
+  question       Question        @relation(fields: [questionId], references: [id])
+  selectedOption QuestionOption? @relation(fields: [selectedOptionId], references: [id])
+
+  @@map("question_attempts")
+}
+
+enum ProgressStatus {
+  LOCKED
+  IN_PROGRESS
+  COMPLETED
+}
+
+model NodeProgress {
+  id                 String         @id @default(uuid())
+  userId             String         @map("user_id")
+  nodeId             String         @map("node_id")
+  status             ProgressStatus @default(LOCKED)
+  understandingScore Float          @default(0) @map("understanding_score")
+  applicationScore   Float          @default(0) @map("application_score")
+  reasoningScore     Float          @default(0) @map("reasoning_score")
+  masteryScore       Float          @default(0) @map("mastery_score")
+  attemptsCount      Int            @default(0) @map("attempts_count")
+  hintsCount         Int            @default(0) @map("hints_count")
+  timeSpentSeconds   Int            @default(0) @map("time_spent_seconds")
+  updatedAt          DateTime       @updatedAt @map("updated_at")
+
+  user      User              @relation(fields: [userId], references: [id])
+  node      ConceptNode       @relation(fields: [nodeId], references: [id])
+  snapshots MasterySnapshot[]
+
+  @@unique([userId, nodeId])
+  @@map("node_progress")
+}
+
+model MasterySnapshot {
+  id           String   @id @default(uuid())
+  progressId   String   @map("progress_id")
+  masteryScore Float    @map("mastery_score")
+  snapshotAt   DateTime @default(now()) @map("snapshot_at")
+
+  progress NodeProgress @relation(fields: [progressId], references: [id])
+
+  @@map("mastery_snapshots")
+}
+
+model Achievement {
+  id            String   @id @default(uuid())
+  userId        String   @map("user_id")
+  type          String
+  titleAr       String   @map("title_ar")
+  descriptionAr String   @map("description_ar")
+  icon          String   @default("trophy")
+  earnedAt      DateTime @default(now()) @map("earned_at")
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@map("achievements")
+}
+
+// ─── Games & Calculators ────────────────────────────────────
+
+model MiniGameDefinition {
+  id        String @id @default(uuid())
+  type      String // CALORIMETER, RESTAURANT_PUZZLE, GAS_VS_WOOD, CALORIE_BURN, COMPRESSES
+  titleAr   String @map("title_ar")
+  configJson Json  @map("config_json")
+  nodeId    String @map("node_id")
+
+  node ConceptNode @relation(fields: [nodeId], references: [id])
+
+  @@map("mini_game_definitions")
+}
+
+model CalculatorTemplate {
+  id          String @id @default(uuid())
+  type        String // BOND_ENERGY, THERMAL_EQUATION, COMBUSTION_HEAT, CALORIC_VALUE, CALORIE_CALC
+  titleAr     String @map("title_ar")
+  formulaJson Json   @map("formula_json")
+  nodeId      String @map("node_id")
+
+  node ConceptNode @relation(fields: [nodeId], references: [id])
+
+  @@map("calculator_templates")
+}
+
+model CalculatorRun {
+  id        String   @id @default(uuid())
+  userId    String   @map("user_id")
+  type      String
+  inputJson Json     @map("input_json")
+  resultJson Json    @map("result_json")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@map("calculator_runs")
+}
+
+// ─── AI Teacher ─────────────────────────────────────────────
+
+model AiSession {
+  id        String   @id @default(uuid())
+  userId    String   @map("user_id")
+  nodeId    String?  @map("node_id")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  user     User        @relation(fields: [userId], references: [id])
+  messages AiMessage[]
+
+  @@map("ai_sessions")
+}
+
+model AiMessage {
+  id            String   @id @default(uuid())
+  sessionId     String   @map("session_id")
+  role          String   // user, assistant
+  content       String   @db.Text
+  citationsJson Json?    @map("citations_json")
+  createdAt     DateTime @default(now()) @map("created_at")
+
+  session AiSession @relation(fields: [sessionId], references: [id])
+
+  @@map("ai_messages")
+}
+
+// ─── Analytics & Audit ──────────────────────────────────────
+
+model AnalyticsEvent {
+  id          String   @id @default(uuid())
+  userId      String?  @map("user_id")
+  eventType   String   @map("event_type")
+  payloadJson Json?    @map("payload_json")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  user User? @relation(fields: [userId], references: [id])
+
+  @@index([eventType])
+  @@map("analytics_events")
+}
+
+model AuditLog {
+  id          String   @id @default(uuid())
+  userId      String?  @map("user_id")
+  action      String
+  entityType  String   @map("entity_type")
+  entityId    String?  @map("entity_id")
+  detailsJson Json?    @map("details_json")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  user User? @relation(fields: [userId], references: [id])
+
+  @@index([entityType, entityId])
+  @@map("audit_logs")
+}
+
+// ─── Admin Settings ─────────────────────────────────────────
+
+model GeminiApiKey {
+  id          String   @id @default(uuid())
+  label       String   @default("") // e.g. "Key 1", "Key 2"
+  apiKey      String   @map("api_key")
+  isActive    Boolean  @default(true) @map("is_active")
+  priority    Int      @default(0) // lower = higher priority
+  usageCount  Int      @default(0) @map("usage_count")
+  lastUsedAt  DateTime? @map("last_used_at")
+  lastError   String?  @map("last_error")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  @@map("gemini_api_keys")
+}
