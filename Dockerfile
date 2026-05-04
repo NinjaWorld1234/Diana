@@ -44,14 +44,14 @@ RUN pnpm install --frozen-lockfile
 # Generate Prisma Client in the production runtime
 RUN cd apps/api && npx prisma generate
 
-# Copy compiled API code
+# Copy compiled API code and seed
 COPY --from=builder /app/apps/api/dist ./apps/api/dist
 
 # Expose API port
 EXPOSE 3001
 
-# Start API (migrate + start, skip seed in production)
-CMD ["sh", "-c", "cd apps/api && npx prisma migrate deploy && cd /app && node apps/api/dist/src/main.js"]
+# Start API: migrate → seed (non-fatal) → run server
+CMD ["sh", "-c", "cd apps/api && npx prisma migrate deploy && (node dist/prisma/seed/index.js || echo 'Seed skipped') && cd /app && node apps/api/dist/src/main.js"]
 
 # ─── Web Production Runtime ───
 FROM nginx:alpine AS web-runner
