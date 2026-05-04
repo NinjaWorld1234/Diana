@@ -348,3 +348,276 @@ aside, main, header, nav, select, option {
   transition-duration: 0.3s;
   transition-timing-function: ease;
 }
+
+/* ─── Layout Structure ──────────────────────────────────── */
+.mobile-topbar {
+  display: none;
+}
+
+.sidebar {
+  width: 260px;
+  background: var(--color-bg-secondary);
+  border-left: 1px solid var(--color-border);
+  padding: 24px 16px;
+  display: flex;
+  flex-direction: column;
+  position: sticky;
+  top: 0;
+  height: 100vh;
+  z-index: 100;
+}
+
+.main-content {
+  flex: 1;
+  padding: 32px;
+  overflow-y: auto;
+  min-width: 0;
+}
+
+.mobile-overlay {
+  display: none;
+}
+
+/* ─── Landing Page Layout ──────────────────────────────── */
+.landing-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 20px 40px;
+  background: var(--header-bg);
+  backdrop-filter: blur(12px);
+  border-bottom: 1px solid var(--glass-border);
+}
+
+.landing-hero {
+  padding: 80px 40px;
+  text-align: center;
+  max-width: 900px;
+  margin: 0 auto;
+}
+
+.landing-title {
+  font-size: 3rem;
+  font-weight: 800;
+  line-height: 1.3;
+  margin-bottom: 20px;
+}
+
+.landing-subtitle {
+  font-size: 1.2rem;
+  color: var(--color-text-secondary);
+  margin-bottom: 40px;
+  line-height: 1.8;
+}
+
+.landing-cta {
+  display: flex;
+  gap: 16px;
+  justify-content: center;
+}
+
+.landing-features {
+  padding: 40px 40px 80px;
+  max-width: 1100px;
+  margin: 0 auto;
+}
+
+.landing-stats {
+  padding: 40px;
+  border-top: 1px solid var(--color-border);
+  background: var(--header-bg);
+}
+
+.landing-stats-grid {
+  display: flex;
+  justify-content: center;
+  gap: 60px;
+  flex-wrap: wrap;
+}
+
+/* ─── Tablet (≤ 1024px) ────────────────────────────────── */
+@media (max-width: 1024px) {
+  .sidebar {
+    width: 220px;
+  }
+
+  .main-content {
+    padding: 24px;
+  }
+
+  .landing-hero {
+    padding: 60px 24px;
+  }
+
+  .landing-title {
+    font-size: 2.4rem;
+  }
+
+  .landing-features {
+    padding: 30px 24px 60px;
+  }
+
+  .landing-stats-grid {
+    gap: 40px;
+  }
+}
+
+/* ─── Mobile (≤ 768px) ─────────────────────────────────── */
+@media (max-width: 768px) {
+  /* Show mobile top bar */
+  .mobile-topbar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 12px 16px;
+    background: var(--color-bg-secondary);
+    border-bottom: 1px solid var(--color-border);
+    position: sticky;
+    top: 0;
+    z-index: 90;
+  }
+
+  /* Sidebar becomes a slide-in drawer */
+  .sidebar {
+    position: fixed;
+    top: 0;
+    right: -280px;
+    width: 280px;
+    height: 100vh;
+    z-index: 200;
+    transition: right 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    box-shadow: none;
+    overflow-y: auto;
+    border-left: 1px solid var(--color-border);
+  }
+
+  .sidebar--open {
+    right: 0;
+    box-shadow: -8px 0 32px rgba(0, 0, 0, 0.3);
+  }
+
+  .sidebar-logo {
+    display: flex !important;
+  }
+
+  /* Overlay */
+  .mobile-overlay {
+    display: block;
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.5);
+    z-index: 150;
+    backdrop-filter: blur(2px);
+  }
+
+  /* Main content full width */
+  .main-content {
+    padding: 16px;
+    width: 100%;
+  }
+
+  /* Landing Page responsive */
+  .landing-header {
+    padding: 14px 16px;
+    gap: 8px;
+  }
+
+  .landing-btn-secondary {
+    display: none;
+  }
+
+  .landing-btn-primary {
+    padding: 8px 16px !important;
+    font-size: 0.85rem !important;
+  }
+
+  .landing-hero {
+    padding: 40px 20px;
+  }
+
+  .landing-title {
+    font-size: 1.8rem;
+    line-height: 1.4;
+  }
+
+  .landing-subtitle {
+    font-size: 1rem;
+    margin-bottom: 28px;
+  }
+
+  .landing-cta {
+    flex-direction: column;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .landing-cta .btn-primary,
+  .landing-cta .btn-secondary {
+    width: 100%;
+    justify-content: center;
+    font-size: 1rem !important;
+    padding: 14px 24px !important;
+  }
+
+  .landing-features {
+    padding: 24px 16px 48px;
+  }
+
+  .landing-stats {
+    padding: 28px 16px;
+  }
+
+  .landing-stats-grid {
+    gap: 24px;
+  }
+
+  /* Glass card adjustments */
+  .glass-card {
+    padding: 20px;
+  }
+
+  /* Buttons touch-friendly */
+  .btn-primary, .btn-secondary {
+    padding: 12px 20px;
+    min-height: 44px;
+  }
+
+  /* Input touch-friendly */
+  .input-field {
+    padding: 14px 16px;
+    font-size: 16px; /* Prevents iOS zoom on focus */
+  }
+
+  /* React Flow mobile controls */
+  .react-flow__controls {
+    bottom: 12px !important;
+    left: 12px !important;
+  }
+}
+
+/* ─── Small Mobile (≤ 400px) ───────────────────────────── */
+@media (max-width: 400px) {
+  .landing-title {
+    font-size: 1.5rem;
+  }
+
+  .landing-subtitle {
+    font-size: 0.9rem;
+  }
+
+  .landing-stats-grid {
+    gap: 16px;
+  }
+
+  .landing-stats-grid > div > .gradient-text {
+    font-size: 2rem;
+  }
+
+  .main-content {
+    padding: 12px;
+  }
+}
+

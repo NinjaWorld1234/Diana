@@ -1,7 +1,8 @@
+import { useState } from 'react';
 import { Outlet, NavLink, useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../../stores/auth.store';
 import { useThemeStore } from '../../stores/theme.store';
-import { Map, Brain, Calculator, BarChart3, User, LogOut, Beaker, Users, Gamepad2, Sun, Moon, Shield } from 'lucide-react';
+import { Map, Brain, Calculator, BarChart3, User, LogOut, Beaker, Gamepad2, Sun, Moon, Shield, Menu, X } from 'lucide-react';
 
 const mainNavItems = [
   { path: '/map', label: 'الخارطة', icon: Map },
@@ -20,25 +21,59 @@ export default function Layout() {
   const { user, logout } = useAuthStore();
   const { theme, toggleTheme } = useThemeStore();
   const navigate = useNavigate();
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+
+  const handleNavClick = (path: string) => {
+    navigate(path);
+    setMobileMenuOpen(false);
+  };
 
   return (
     <div style={{ display: 'flex', minHeight: '100vh' }}>
-      {/* Sidebar */}
-      <aside style={{
-        width: '260px',
-        background: 'var(--color-bg-secondary)',
-        borderLeft: '1px solid var(--color-border)',
-        padding: '24px 16px',
-        display: 'flex',
-        flexDirection: 'column',
-        position: 'sticky',
-        top: 0,
-        height: '100vh',
-      }}>
-        {/* Logo */}
+      {/* ── Mobile Top Bar ── */}
+      <header className="mobile-topbar">
         <div
+          style={{ display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer' }}
+          onClick={() => handleNavClick('/map')}
+        >
+          <div style={{
+            width: '34px', height: '34px', borderRadius: '10px',
+            background: 'linear-gradient(135deg, var(--color-primary), var(--color-secondary))',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+          }}>
+            <Beaker size={18} color="white" />
+          </div>
+          <span style={{ fontWeight: 700, fontSize: '0.95rem' }}>ديانا</span>
+        </div>
+        <button
+          onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+          style={{
+            background: 'var(--color-bg)', border: '1px solid var(--color-border)',
+            borderRadius: '8px', width: '38px', height: '38px',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            cursor: 'pointer', color: 'var(--color-text)',
+          }}
+          aria-label="القائمة"
+        >
+          {mobileMenuOpen ? <X size={20} /> : <Menu size={20} />}
+        </button>
+      </header>
+
+      {/* ── Mobile Overlay ── */}
+      {mobileMenuOpen && (
+        <div
+          className="mobile-overlay"
+          onClick={() => setMobileMenuOpen(false)}
+        />
+      )}
+
+      {/* ── Sidebar (Desktop) + Slide-in Menu (Mobile) ── */}
+      <aside className={`sidebar ${mobileMenuOpen ? 'sidebar--open' : ''}`}>
+        {/* Logo (Desktop only, hidden on mobile since topbar has it) */}
+        <div
+          className="sidebar-logo"
           style={{ display: 'flex', alignItems: 'center', gap: '12px', cursor: 'pointer', marginBottom: '32px' }}
-          onClick={() => navigate('/map')}
+          onClick={() => handleNavClick('/map')}
         >
           <div style={{
             width: '42px', height: '42px', borderRadius: '12px',
@@ -59,6 +94,7 @@ export default function Layout() {
             <NavLink
               key={item.path}
               to={item.path}
+              onClick={() => setMobileMenuOpen(false)}
               style={({ isActive }) => ({
                 display: 'flex', alignItems: 'center', gap: '12px',
                 padding: '12px 16px', borderRadius: 'var(--radius-sm)',
@@ -82,6 +118,7 @@ export default function Layout() {
                 <NavLink
                   key={item.path}
                   to={item.path}
+                  onClick={() => setMobileMenuOpen(false)}
                   style={({ isActive }) => ({
                     display: 'flex', alignItems: 'center', gap: '12px',
                     padding: '12px 16px', borderRadius: 'var(--radius-sm)',
@@ -131,17 +168,17 @@ export default function Layout() {
               width: '36px', height: '36px', borderRadius: '50%',
               background: 'linear-gradient(135deg, var(--color-primary), var(--color-accent))',
               display: 'flex', alignItems: 'center', justifyContent: 'center',
-              fontSize: '0.85rem', fontWeight: 700, color: 'white',
+              fontSize: '0.85rem', fontWeight: 700, color: 'white', flexShrink: 0,
             }}>
               {user?.name?.charAt(0) || '?'}
             </div>
-            <div>
-              <div style={{ fontSize: '0.9rem', fontWeight: 600 }}>{user?.name || 'طالب'}</div>
+            <div style={{ minWidth: 0 }}>
+              <div style={{ fontSize: '0.9rem', fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{user?.name || 'طالب'}</div>
               <div style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)' }}>{user?.role === 'STUDENT' ? 'طالب' : user?.role === 'TEACHER' ? 'معلم' : 'مدير'}</div>
             </div>
           </div>
           <button
-            onClick={logout}
+            onClick={() => { logout(); setMobileMenuOpen(false); }}
             style={{
               display: 'flex', alignItems: 'center', gap: '8px', width: '100%',
               padding: '10px 16px', borderRadius: 'var(--radius-sm)',
@@ -157,7 +194,7 @@ export default function Layout() {
       </aside>
 
       {/* Main Content */}
-      <main style={{ flex: 1, padding: '32px', overflowY: 'auto' }}>
+      <main className="main-content">
         <Outlet />
       </main>
     </div>

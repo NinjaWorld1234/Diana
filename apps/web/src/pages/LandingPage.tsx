@@ -17,11 +17,7 @@ export default function LandingPage() {
   return (
     <div className="animated-bg" style={{ minHeight: '100vh' }}>
       {/* Header */}
-      <header style={{
-        display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-        padding: '20px 40px', background: 'var(--header-bg)', backdropFilter: 'blur(12px)',
-        borderBottom: '1px solid var(--glass-border)',
-      }}>
+      <header className="landing-header">
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
           <div style={{
             width: '40px', height: '40px', borderRadius: '10px',
@@ -32,7 +28,7 @@ export default function LandingPage() {
           </div>
           <span style={{ fontWeight: 700, fontSize: '1.1rem' }}>الخارطة التكيفية</span>
         </div>
-        <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
+        <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
           <button
             onClick={toggleTheme}
             style={{
@@ -45,13 +41,13 @@ export default function LandingPage() {
           >
             {theme === 'dark' ? <Sun size={18} /> : <Moon size={18} />}
           </button>
-          <button className="btn-secondary" onClick={() => navigate('/login')}>تسجيل الدخول</button>
-          <button className="btn-primary" onClick={() => navigate('/register')}>إنشاء حساب</button>
+          <button className="btn-secondary landing-btn-secondary" onClick={() => navigate('/login')}>تسجيل الدخول</button>
+          <button className="btn-primary landing-btn-primary" onClick={() => navigate('/register')}>إنشاء حساب</button>
         </div>
       </header>
 
       {/* Hero */}
-      <section style={{ padding: '80px 40px', textAlign: 'center', maxWidth: '900px', margin: '0 auto' }}>
+      <section className="landing-hero">
         <motion.div
           initial={{ opacity: 0, y: 30 }}
           animate={{ opacity: 1, y: 0 }}
@@ -66,17 +62,17 @@ export default function LandingPage() {
             <span style={{ fontSize: '0.9rem', color: '#3B82F6', fontWeight: 600 }}>الصف العاشر — الكيمياء</span>
           </div>
 
-          <h1 style={{ fontSize: '3rem', fontWeight: 800, lineHeight: 1.3, marginBottom: '20px' }}>
+          <h1 className="landing-title">
             <span className="gradient-text">الطاقة في التفاعلات</span>
             <br />الكيميائية
           </h1>
 
-          <p style={{ fontSize: '1.2rem', color: 'var(--color-text-secondary)', marginBottom: '40px', lineHeight: 1.8 }}>
+          <p className="landing-subtitle">
             منصة تعليمية تكيفية ذكية تأخذك في رحلة تعلم مخصصة عبر خارطة مفاهيمية تفاعلية،
             مدعومة بمعلم ذكي وحاسبات كيميائية متقدمة
           </p>
 
-          <div style={{ display: 'flex', gap: '16px', justifyContent: 'center' }}>
+          <div className="landing-cta">
             <button className="btn-primary" onClick={() => navigate('/register')} style={{ fontSize: '1.1rem', padding: '16px 36px' }}>
               ابدأ التعلم الآن
               <ArrowLeft size={20} />
@@ -89,7 +85,7 @@ export default function LandingPage() {
       </section>
 
       {/* Features Grid */}
-      <section style={{ padding: '40px 40px 80px', maxWidth: '1100px', margin: '0 auto' }}>
+      <section className="landing-features">
         <div style={{
           display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))',
           gap: '20px',
@@ -118,13 +114,8 @@ export default function LandingPage() {
       </section>
 
       {/* Stats */}
-      <section style={{
-        padding: '40px', borderTop: '1px solid var(--color-border)',
-        background: 'var(--header-bg)',
-      }}>
-        <div style={{
-          display: 'flex', justifyContent: 'center', gap: '60px', flexWrap: 'wrap',
-        }}>
+      <section className="landing-stats">
+        <div className="landing-stats-grid">
           {[
             { value: '11', label: 'عقدة مفاهيمية' },
             { value: '100+', label: 'سؤال متنوع' },
