@@ -29,7 +29,7 @@ export default function Layout() {
   };
 
   return (
-    <div style={{ display: 'flex', minHeight: '100vh' }}>
+    <div className="layout-wrapper">
       {/* ── Mobile Top Bar ── */}
       <header className="mobile-topbar">
         <div
