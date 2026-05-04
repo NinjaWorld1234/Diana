@@ -50,8 +50,6 @@ services:
       target: web-runner
     container_name: diana-web-prod
     restart: always
-    ports:
-      - "80:80"
     depends_on:
       - api
 
