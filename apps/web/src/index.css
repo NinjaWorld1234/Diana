@@ -477,23 +477,23 @@ aside, main, header, nav, select, option {
     z-index: 90;
   }
 
-  /* Sidebar becomes a slide-in drawer */
+  /* Hide sidebar by default on mobile */
   .sidebar {
+    display: none;
     position: fixed;
     top: 0;
-    right: -280px;
+    right: 0;
     width: 280px;
     height: 100vh;
     z-index: 200;
-    transition: right 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-    box-shadow: none;
     overflow-y: auto;
     border-left: 1px solid var(--color-border);
+    box-shadow: -8px 0 32px rgba(0, 0, 0, 0.3);
   }
 
+  /* Show sidebar when open */
   .sidebar--open {
-    right: 0;
-    box-shadow: -8px 0 32px rgba(0, 0, 0, 0.3);
+    display: flex;
   }
 
   .sidebar-logo {
