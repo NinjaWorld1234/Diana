@@ -30,21 +30,28 @@ WORKDIR /app
 # Ensure openssl is installed for prisma
 RUN apk add --no-cache openssl
 
+# Copy package manifests
 COPY --from=builder /app/package.json /app/pnpm-lock.yaml /app/pnpm-workspace.yaml ./
 COPY --from=builder /app/apps/api/package.json ./apps/api/
 COPY --from=builder /app/apps/web/package.json ./apps/web/
 
-# Install dependencies (including devDependencies for Prisma CLI and ts-node)
+# Copy prisma schema BEFORE install so postinstall can find it
+COPY --from=builder /app/apps/api/prisma ./apps/api/prisma
+
+# Install dependencies
 RUN pnpm install --frozen-lockfile
 
+# Generate Prisma Client in the production runtime
+RUN cd apps/api && npx prisma generate
+
+# Copy compiled API code
 COPY --from=builder /app/apps/api/dist ./apps/api/dist
-COPY --from=builder /app/apps/api/prisma ./apps/api/prisma
 
 # Expose API port
 EXPOSE 3001
 
-# Start API
-CMD ["pnpm", "--filter", "api", "start:prod"]
+# Start API (migrate + start, skip seed in production)
+CMD ["sh", "-c", "cd apps/api && npx prisma migrate deploy && cd /app && node apps/api/dist/src/main.js"]
 
 # ─── Web Production Runtime ───
 FROM nginx:alpine AS web-runner

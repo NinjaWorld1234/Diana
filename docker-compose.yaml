@@ -3,7 +3,6 @@ version: '3.8'
 services:
   postgres:
     image: pgvector/pgvector:pg16
-    container_name: diana-postgres-prod
     restart: always
     environment:
       POSTGRES_USER: diana
@@ -19,7 +18,6 @@ services:
 
   redis:
     image: redis:7-alpine
-    container_name: diana-redis-prod
     restart: always
     volumes:
       - diana_redis_prod:/data
@@ -28,7 +26,6 @@ services:
     build:
       context: .
       target: api-runner
-    container_name: diana-api-prod
     restart: always
     environment:
       - NODE_ENV=production
@@ -41,14 +38,11 @@ services:
         condition: service_healthy
       redis:
         condition: service_started
-    # Wait for DB, migrate, seed, and start
-    command: /bin/sh -c "pnpm --filter api exec prisma migrate deploy && pnpm --filter api exec prisma db seed && pnpm --filter api start:prod"
 
   web:
     build:
       context: .
       target: web-runner
-    container_name: diana-web-prod
     restart: always
     depends_on:
       - api
