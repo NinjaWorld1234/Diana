@@ -47,11 +47,15 @@ RUN cd apps/api && npx prisma generate
 # Copy compiled API code and seed
 COPY --from=builder /app/apps/api/dist ./apps/api/dist
 
+# Copy entrypoint script
+COPY docker/entrypoint.sh /app/entrypoint.sh
+RUN chmod +x /app/entrypoint.sh
+
 # Expose API port
 EXPOSE 3001
 
-# Start API: migrate → seed (non-fatal) → run server
-CMD ["sh", "-c", "cd apps/api && npx prisma migrate deploy && (node dist/prisma/seed/index.js || echo 'Seed skipped') && cd /app && node apps/api/dist/src/main.js"]
+# Start API via entrypoint (migrate → conditional seed → run)
+CMD ["/app/entrypoint.sh"]
 
 # ─── Web Production Runtime ───
 FROM nginx:alpine AS web-runner
