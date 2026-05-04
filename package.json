@@ -17,7 +17,8 @@
     "db:studio": "pnpm --filter api db:studio",
     "docker:up": "docker compose -f docker/docker-compose.yml up -d",
     "docker:down": "docker compose -f docker/docker-compose.yml down",
-    "setup": "pnpm install && pnpm db:generate && pnpm db:migrate && pnpm db:seed"
+    "setup": "pnpm install && pnpm db:generate && pnpm db:migrate && pnpm db:seed",
+    "postinstall": "pnpm db:generate"
   },
   "engines": {
     "node": ">=18.0.0",
