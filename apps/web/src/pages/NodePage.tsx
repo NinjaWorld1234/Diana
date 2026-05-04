@@ -294,7 +294,7 @@ export default function NodePage() {
                       {feedbackData.explanation && <p style={{ fontSize: '0.9rem', color: 'var(--color-text-secondary)', lineHeight: 1.7 }}>{feedbackData.explanation}</p>}
                     </motion.div>
                     
-                    {!feedbackData.isCorrect && remediationCards?.length > 0 && (
+                    {!feedbackData.isCorrect && (remediationCards || []).length > 0 && (
                       <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} style={{
                         padding: '20px', borderRadius: 'var(--radius-sm)', marginBottom: '16px',
                         background: 'var(--color-bg)', border: '2px dashed rgba(59, 130, 246, 0.5)',
@@ -304,7 +304,7 @@ export default function NodePage() {
                           <span style={{ fontWeight: 600 }}>بطاقة دعم ومراجعة</span>
                         </div>
                         <p style={{ fontSize: '0.95rem', lineHeight: 1.8, color: 'var(--color-text-secondary)' }}>
-                          {remediationCards.find((r: any) => r.level === (phase === 'q-understanding' ? 'UNDERSTANDING' : phase === 'q-application' ? 'APPLICATION' : 'REASONING'))?.contentAr || remediationCards[0].contentAr}
+                          {(remediationCards || []).find((r: any) => r.level === (phase === 'q-understanding' ? 'UNDERSTANDING' : phase === 'q-application' ? 'APPLICATION' : 'REASONING'))?.contentAr || (remediationCards || [])[0]?.contentAr}
                         </p>
                       </motion.div>
                     )}
