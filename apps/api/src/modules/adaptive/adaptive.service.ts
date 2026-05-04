@@ -152,7 +152,9 @@ export class AdaptiveService {
   /**
    * Get the current mastery state for a user across all nodes
    */
-  async getUserMasteryMap(userId: string) {
+  async getUserMasteryMap(userId: string, role?: string) {
+    const isPrivileged = role === 'TEACHER' || role === 'ADMIN';
+
     const progress = await this.prisma.nodeProgress.findMany({
       where: { userId },
       include: { node: true },
@@ -169,7 +171,8 @@ export class AdaptiveService {
         nodeId: node.id,
         titleAr: node.titleAr,
         order: node.order,
-        status: p?.status ?? 'LOCKED',
+        // Teachers & Admins: all nodes are open
+        status: isPrivileged ? (p?.status === 'COMPLETED' ? 'COMPLETED' : 'IN_PROGRESS') : (p?.status ?? 'LOCKED'),
         masteryScore: p?.masteryScore ?? 0,
         understandingScore: p?.understandingScore ?? 0,
         applicationScore: p?.applicationScore ?? 0,
@@ -198,17 +201,32 @@ export class AdaptiveService {
   /**
    * Initialize progress for first node (make it OPEN)
    */
-  async initializeProgress(userId: string) {
-    const firstNode = await this.prisma.conceptNode.findFirst({
-      orderBy: { order: 'asc' },
-    });
-    if (!firstNode) return;
+  async initializeProgress(userId: string, role?: string) {
+    const isPrivileged = role === 'TEACHER' || role === 'ADMIN';
 
-    await this.prisma.nodeProgress.upsert({
-      where: { userId_nodeId: { userId, nodeId: firstNode.id } },
-      create: { userId, nodeId: firstNode.id, status: 'IN_PROGRESS' },
-      update: {},
-    });
+    if (isPrivileged) {
+      // Teachers & Admins: open all nodes at once
+      const allNodes = await this.prisma.conceptNode.findMany();
+      for (const node of allNodes) {
+        await this.prisma.nodeProgress.upsert({
+          where: { userId_nodeId: { userId, nodeId: node.id } },
+          create: { userId, nodeId: node.id, status: 'IN_PROGRESS' },
+          update: { status: 'IN_PROGRESS' },
+        });
+      }
+    } else {
+      // Students: only open the first node
+      const firstNode = await this.prisma.conceptNode.findFirst({
+        orderBy: { order: 'asc' },
+      });
+      if (!firstNode) return;
+
+      await this.prisma.nodeProgress.upsert({
+        where: { userId_nodeId: { userId, nodeId: firstNode.id } },
+        create: { userId, nodeId: firstNode.id, status: 'IN_PROGRESS' },
+        update: {},
+      });
+    }
   }
 
   private async updateProgress(

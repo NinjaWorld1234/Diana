@@ -24,7 +24,7 @@ export class AdaptiveController {
 
   @Get('mastery-map')
   getMasteryMap(@Req() req: any) {
-    return this.adaptiveService.getUserMasteryMap(req.user.sub);
+    return this.adaptiveService.getUserMasteryMap(req.user.sub, req.user.role);
   }
 
   @Get('check-review/:nodeId')
@@ -34,6 +34,6 @@ export class AdaptiveController {
 
   @Post('initialize')
   initialize(@Req() req: any) {
-    return this.adaptiveService.initializeProgress(req.user.sub);
+    return this.adaptiveService.initializeProgress(req.user.sub, req.user.role);
   }
 }
