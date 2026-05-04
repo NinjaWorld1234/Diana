@@ -34,8 +34,8 @@ COPY --from=builder /app/package.json /app/pnpm-lock.yaml /app/pnpm-workspace.ya
 COPY --from=builder /app/apps/api/package.json ./apps/api/
 COPY --from=builder /app/apps/web/package.json ./apps/web/
 
-# Install only production dependencies
-RUN pnpm install --prod --frozen-lockfile
+# Install dependencies (including devDependencies for Prisma CLI and ts-node)
+RUN pnpm install --frozen-lockfile
 
 COPY --from=builder /app/apps/api/dist ./apps/api/dist
 COPY --from=builder /app/apps/api/prisma ./apps/api/prisma
