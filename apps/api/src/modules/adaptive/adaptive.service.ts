@@ -155,11 +155,21 @@ export class AdaptiveService {
   async getUserMasteryMap(userId: string, role?: string) {
     const isPrivileged = role === 'TEACHER' || role === 'ADMIN';
 
-    const progress = await this.prisma.nodeProgress.findMany({
+    let progress = await this.prisma.nodeProgress.findMany({
       where: { userId },
       include: { node: true },
       orderBy: { node: { order: 'asc' } },
     });
+
+    // Fallback for existing students who never had their progress initialized
+    if (progress.length === 0 && !isPrivileged) {
+      await this.initializeProgress(userId, role);
+      progress = await this.prisma.nodeProgress.findMany({
+        where: { userId },
+        include: { node: true },
+        orderBy: { node: { order: 'asc' } },
+      });
+    }
 
     const nodes = await this.prisma.conceptNode.findMany({
       orderBy: { order: 'asc' },
