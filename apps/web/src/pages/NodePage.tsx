@@ -3,10 +3,12 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { motion, AnimatePresence } from 'framer-motion';
 import { contentApi, questionsApi, adaptiveApi, progressApi } from '../lib/api';
-import { ArrowRight, BookOpen, HelpCircle, Lightbulb, CheckCircle, XCircle, ChevronLeft, Brain } from 'lucide-react';
+import { ArrowRight, BookOpen, HelpCircle, Lightbulb, CheckCircle, XCircle, ChevronLeft, Brain, RotateCcw } from 'lucide-react';
 import MCQQuestion from '../components/questions/MCQQuestion';
 import OrderQuestion from '../components/questions/OrderQuestion';
 import DragDropQuestion from '../components/questions/DragDropQuestion';
+import FillBlankQuestion from '../components/questions/FillBlankQuestion';
+import ClassifyQuestion from '../components/questions/ClassifyQuestion';
 
 type Phase = 'intro' | 'content' | 'q-understanding' | 'q-application' | 'q-reasoning' | 'result';
 
@@ -21,6 +23,11 @@ export default function NodePage() {
   const [feedbackData, setFeedbackData] = useState<any>(null);
   const [adaptiveResult, setAdaptiveResult] = useState<any>(null);
 
+  // ─── 2-Strike Error System ────────────────
+  const [strikeCount, setStrikeCount] = useState(0); // 0=no error, 1=first error (show hint), 2=second error (redirect)
+  const [showHintOnError, setShowHintOnError] = useState(false);
+  const [showRedirectChoice, setShowRedirectChoice] = useState(false);
+
   // ─── Time Tracking ─────────────────────────
   const timeRef = useRef(0);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -28,21 +35,13 @@ export default function NodePage() {
   useEffect(() => {
     if (!nodeId) return;
     timeRef.current = 0;
-
-    // Tick every second
-    intervalRef.current = setInterval(() => {
-      timeRef.current += 1;
-    }, 1000);
-
-    // Flush every 30 seconds
+    intervalRef.current = setInterval(() => { timeRef.current += 1; }, 1000);
     const flushInterval = setInterval(() => {
       if (timeRef.current > 0) {
         progressApi.updateTimeSpent(nodeId, timeRef.current).catch(() => {});
         timeRef.current = 0;
       }
     }, 30000);
-
-    // Flush on unmount
     return () => {
       if (intervalRef.current) clearInterval(intervalRef.current);
       clearInterval(flushInterval);
@@ -77,31 +76,7 @@ export default function NodePage() {
   });
 
   const [activeHint, setActiveHint] = useState<any>(null);
-  const [hintLoading, setHintLoading] = useState(false);
 
-  const handleUseHint = async () => {
-    if (!hints || hints.length === 0) return;
-    
-    // Find a hint for the current level
-    const currentLevel = phase === 'q-understanding' ? 'UNDERSTANDING' : phase === 'q-application' ? 'APPLICATION' : 'REASONING';
-    const levelHints = hints.filter((h: any) => h.level === currentLevel);
-    if (levelHints.length === 0) return;
-
-    // Pick a random hint for the level
-    const randomHint = levelHints[Math.floor(Math.random() * levelHints.length)];
-    
-    setHintLoading(true);
-    try {
-      await questionsApi.useHint(nodeId!, randomHint.id);
-      setActiveHint(randomHint);
-    } catch (e) {
-      console.error(e);
-    } finally {
-      setHintLoading(false);
-    }
-  };
-
-  // Group questions by level
   const questionsByLevel = {
     UNDERSTANDING: questions?.filter((q: any) => q.level === 'UNDERSTANDING') || [],
     APPLICATION: questions?.filter((q: any) => q.level === 'APPLICATION') || [],
@@ -115,16 +90,49 @@ export default function NodePage() {
     return [];
   };
 
+  const getCurrentLevelKey = () => {
+    if (phase === 'q-understanding') return 'UNDERSTANDING';
+    if (phase === 'q-application') return 'APPLICATION';
+    return 'REASONING';
+  };
+
   const handleSubmitAnswer = async () => {
     if (!selectedOption) return;
     const currentQuestions = getCurrentQuestions();
     const q = currentQuestions[currentQ];
-    
+
     try {
       const result = await questionsApi.submitAnswer(q.id, selectedOption, 30);
-      setFeedbackData(result);
-      setShowFeedback(true);
-      setAnswers((prev) => ({ ...prev, [q.id]: { isCorrect: result.isCorrect, selectedId: selectedOption } }));
+
+      if (result.isCorrect) {
+        // Correct answer — show success feedback
+        setFeedbackData(result);
+        setShowFeedback(true);
+        setAnswers((prev) => ({ ...prev, [q.id]: { isCorrect: true, selectedId: selectedOption } }));
+        setStrikeCount(0);
+        setShowHintOnError(false);
+        setShowRedirectChoice(false);
+      } else {
+        // Wrong answer — 2-strike system
+        const newStrikes = strikeCount + 1;
+        setStrikeCount(newStrikes);
+
+        if (newStrikes === 1) {
+          // First error: show hint, allow retry
+          const levelHints = hints?.filter((h: any) => h.level === getCurrentLevelKey()) || [];
+          if (levelHints.length > 0) {
+            setActiveHint(levelHints[Math.floor(Math.random() * levelHints.length)]);
+          }
+          setShowHintOnError(true);
+          setSelectedOption(null); // Reset selection for retry
+        } else {
+          // Second error: show redirect choice
+          setFeedbackData(result);
+          setShowFeedback(true);
+          setShowRedirectChoice(true);
+          setAnswers((prev) => ({ ...prev, [q.id]: { isCorrect: false, selectedId: selectedOption } }));
+        }
+      }
     } catch {
       setShowFeedback(true);
       setFeedbackData({ isCorrect: false, explanation: 'حدث خطأ' });
@@ -136,6 +144,9 @@ export default function NodePage() {
     setSelectedOption(null);
     setFeedbackData(null);
     setActiveHint(null);
+    setStrikeCount(0);
+    setShowHintOnError(false);
+    setShowRedirectChoice(false);
     const currentQuestions = getCurrentQuestions();
 
     if (currentQ < currentQuestions.length - 1) {
@@ -149,9 +160,8 @@ export default function NodePage() {
   };
 
   const evaluateResults = async () => {
-    // Calculate success rate per level (at least 50% correct to pass)
     const calcPassRate = (levelQuestions: any[]) => {
-      if (levelQuestions.length === 0) return true; // No questions = auto pass
+      if (levelQuestions.length === 0) return true;
       const correct = levelQuestions.filter((q: any) => answers[q.id]?.isCorrect).length;
       return correct / levelQuestions.length >= 0.5;
     };
@@ -166,6 +176,29 @@ export default function NodePage() {
       setAdaptiveResult({ path: 'FULL_REMEDIATION', message: 'حدث خطأ في التقييم', pointsEarned: 0 });
     }
     setPhase('result');
+  };
+
+  // ─── Render Question Component ────────────
+  const renderQuestionInput = (q: any) => {
+    if (!q) return null;
+    switch (q.type) {
+      case 'ORDER':
+        return <OrderQuestion question={q} showFeedback={showFeedback} isCorrect={feedbackData?.isCorrect} onSelect={setSelectedOption} />;
+      case 'DRAG_DROP':
+        return <DragDropQuestion question={q} showFeedback={showFeedback} isCorrect={feedbackData?.isCorrect} onSelect={setSelectedOption} />;
+      case 'FILL_BLANK':
+        return <FillBlankQuestion question={q} showFeedback={showFeedback} isCorrect={feedbackData?.isCorrect} onSelect={setSelectedOption} />;
+      case 'CLASSIFY':
+        return <ClassifyQuestion question={q} showFeedback={showFeedback} isCorrect={feedbackData?.isCorrect} onSelect={setSelectedOption} />;
+      default:
+        return <MCQQuestion question={q} showFeedback={showFeedback} selectedOption={selectedOption} onSelect={setSelectedOption} answers={answers} />;
+    }
+  };
+
+  // ─── Helper: extract YouTube ID ───────────
+  const getYouTubeId = (url: string) => {
+    const match = url.match(/(?:v=|\/embed\/|youtu\.be\/)([a-zA-Z0-9_-]{11})/);
+    return match ? match[1] : null;
   };
 
   if (!node) {
@@ -187,8 +220,8 @@ export default function NodePage() {
         </div>
       </div>
 
-      {/* Phase: Intro */}
       <AnimatePresence mode="wait">
+        {/* Phase: Intro */}
         {phase === 'intro' && (
           <motion.div key="intro" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}>
             <div className="glass-card" style={{ padding: '32px', marginBottom: '20px' }}>
@@ -212,6 +245,7 @@ export default function NodePage() {
         {/* Phase: Content */}
         {phase === 'content' && (
           <motion.div key="content" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}>
+            {/* Content Chunks */}
             {node.contentChunks?.map((chunk: any, i: number) => (
               <div key={i} className="glass-card" style={{ padding: '24px', marginBottom: '12px' }}>
                 <div style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)', marginBottom: '8px', textTransform: 'uppercase' }}>
@@ -220,6 +254,40 @@ export default function NodePage() {
                 <p style={{ lineHeight: 2, fontSize: '1rem', whiteSpace: 'pre-wrap' }}>{chunk.textAr}</p>
               </div>
             ))}
+
+            {/* Figures/Images */}
+            {node.figures?.length > 0 && node.figures.map((fig: any, i: number) => (
+              fig.imageUrl && (
+                <div key={`fig-${i}`} className="glass-card" style={{ padding: '16px', marginBottom: '12px', textAlign: 'center' }}>
+                  <img src={fig.imageUrl} alt={fig.captionAr} style={{ maxWidth: '100%', borderRadius: 'var(--radius-sm)' }} />
+                  {fig.captionAr && <p style={{ fontSize: '0.85rem', color: 'var(--color-text-muted)', marginTop: '8px' }}>{fig.captionAr}</p>}
+                </div>
+              )
+            ))}
+
+            {/* YouTube Videos — look for URLs in sub-concepts */}
+            {node.subConcepts?.filter((sc: any) => sc.contentAr?.includes('youtube.com')).map((sc: any, i: number) => {
+              const urls = sc.contentAr.match(/https?:\/\/(?:www\.)?youtube\.com\/watch\?v=[a-zA-Z0-9_-]+/g) || [];
+              return urls.map((url: string, j: number) => {
+                const vid = getYouTubeId(url);
+                return vid ? (
+                  <div key={`yt-${i}-${j}`} className="glass-card" style={{ padding: '16px', marginBottom: '12px' }}>
+                    <h4 style={{ fontSize: '0.9rem', fontWeight: 600, marginBottom: '12px' }}>🎬 {sc.titleAr}</h4>
+                    <div style={{ position: 'relative', paddingBottom: '56.25%', height: 0, borderRadius: 'var(--radius-sm)', overflow: 'hidden' }}>
+                      <iframe
+                        src={`https://www.youtube.com/embed/${vid}`}
+                        style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', border: 'none' }}
+                        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                        allowFullScreen
+                        title={sc.titleAr}
+                      />
+                    </div>
+                  </div>
+                ) : null;
+              });
+            })}
+
+            {/* Formulas */}
             {node.formulas?.length > 0 && (
               <div className="glass-card" style={{ padding: '24px', marginBottom: '12px' }}>
                 <h3 style={{ fontSize: '1rem', fontWeight: 600, marginBottom: '12px' }}>📐 المعادلات والقوانين</h3>
@@ -231,24 +299,16 @@ export default function NodePage() {
                 ))}
               </div>
             )}
+
             <button className="btn-primary" onClick={() => { setCurrentQ(0); setPhase('q-understanding'); }}>
               ابدأ التقييم <ChevronLeft size={18} />
             </button>
           </motion.div>
         )}
 
-        {/* Phase: Questions */}
+        {/* Phase: Questions — NO level badges shown */}
         {(phase === 'q-understanding' || phase === 'q-application' || phase === 'q-reasoning') && (
           <motion.div key={phase} initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0 }}>
-            <div style={{
-              display: 'inline-block', padding: '6px 16px', borderRadius: '50px', marginBottom: '16px',
-              background: phase === 'q-understanding' ? 'rgba(59, 130, 246, 0.15)' : phase === 'q-application' ? 'rgba(139, 92, 246, 0.15)' : 'rgba(245, 158, 11, 0.15)',
-              color: phase === 'q-understanding' ? '#3B82F6' : phase === 'q-application' ? '#8B5CF6' : '#F59E0B',
-              fontWeight: 600, fontSize: '0.85rem',
-            }}>
-              {phase === 'q-understanding' ? '🧠 مستوى الفهم' : phase === 'q-application' ? '🔧 مستوى التطبيق' : '💡 مستوى الاستدلال'}
-            </div>
-
             {getCurrentQuestions().length > 0 ? (
               <div className="glass-card" style={{ padding: '32px' }}>
                 <div style={{ marginBottom: '8px', fontSize: '0.85rem', color: 'var(--color-text-muted)' }}>
@@ -258,29 +318,26 @@ export default function NodePage() {
                   {getCurrentQuestions()[currentQ]?.textAr}
                 </h3>
 
-                {getCurrentQuestions()[currentQ]?.type === 'ORDER' ? (
-                  <OrderQuestion 
-                    question={getCurrentQuestions()[currentQ]} 
-                    showFeedback={showFeedback} 
-                    isCorrect={feedbackData?.isCorrect} 
-                    onSelect={setSelectedOption} 
-                  />
-                ) : getCurrentQuestions()[currentQ]?.type === 'DRAG_DROP' ? (
-                  <DragDropQuestion 
-                    question={getCurrentQuestions()[currentQ]} 
-                    showFeedback={showFeedback} 
-                    isCorrect={feedbackData?.isCorrect} 
-                    onSelect={setSelectedOption} 
-                  />
-                ) : (
-                  <MCQQuestion 
-                    question={getCurrentQuestions()[currentQ]} 
-                    showFeedback={showFeedback} 
-                    selectedOption={selectedOption} 
-                    onSelect={setSelectedOption} 
-                    answers={answers} 
-                  />
+                {renderQuestionInput(getCurrentQuestions()[currentQ])}
+
+                {/* Hint shown after first error */}
+                {showHintOnError && activeHint && (
+                  <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} style={{
+                    padding: '16px', borderRadius: 'var(--radius-sm)', marginBottom: '16px',
+                    background: 'rgba(245, 158, 11, 0.1)', border: '1px solid rgba(245, 158, 11, 0.3)',
+                    display: 'flex', gap: '12px', alignItems: 'flex-start'
+                  }}>
+                    <Lightbulb size={24} color="#F59E0B" style={{ flexShrink: 0 }} />
+                    <div>
+                      <div style={{ fontWeight: 600, color: '#F59E0B', marginBottom: '4px' }}>💡 تلميح — حاول مرة أخرى</div>
+                      <p style={{ fontSize: '0.95rem', color: 'var(--color-text-secondary)', lineHeight: 1.6, whiteSpace: 'pre-wrap' }}>
+                        {activeHint.textAr}
+                      </p>
+                    </div>
+                  </motion.div>
                 )}
+
+                {/* Feedback after correct answer or second error */}
                 {showFeedback && feedbackData && (
                   <>
                     <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} style={{
@@ -293,58 +350,41 @@ export default function NodePage() {
                       </div>
                       {feedbackData.explanation && <p style={{ fontSize: '0.9rem', color: 'var(--color-text-secondary)', lineHeight: 1.7 }}>{feedbackData.explanation}</p>}
                     </motion.div>
-                    
-                    {!feedbackData.isCorrect && (remediationCards || []).length > 0 && (
+
+                    {/* Second error: Show redirect choices */}
+                    {showRedirectChoice && !feedbackData.isCorrect && (
                       <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} style={{
-                        padding: '20px', borderRadius: 'var(--radius-sm)', marginBottom: '16px',
-                        background: 'var(--color-bg)', border: '2px dashed rgba(59, 130, 246, 0.5)',
+                        padding: '24px', borderRadius: 'var(--radius-sm)', marginBottom: '16px',
+                        background: 'var(--color-bg)', border: '2px dashed rgba(59, 130, 246, 0.5)', textAlign: 'center',
                       }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px', color: 'var(--color-primary)' }}>
-                          <BookOpen size={20} />
-                          <span style={{ fontWeight: 600 }}>بطاقة دعم ومراجعة</span>
+                        <div style={{ fontSize: '1rem', fontWeight: 600, marginBottom: '16px', color: 'var(--color-text)' }}>
+                          يبدو أنك تحتاج لمراجعة المادة. اختر طريقة المراجعة:
                         </div>
-                        <p style={{ fontSize: '0.95rem', lineHeight: 1.8, color: 'var(--color-text-secondary)' }}>
-                          {(remediationCards || []).find((r: any) => r.level === (phase === 'q-understanding' ? 'UNDERSTANDING' : phase === 'q-application' ? 'APPLICATION' : 'REASONING'))?.contentAr || (remediationCards || [])[0]?.contentAr}
-                        </p>
+                        <div style={{ display: 'flex', gap: '12px', justifyContent: 'center', flexWrap: 'wrap' }}>
+                          <button className="btn-secondary" onClick={() => { setPhase('content'); setShowFeedback(false); setShowRedirectChoice(false); setStrikeCount(0); }} style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                            <RotateCcw size={18} /> العودة لشرح المادة
+                          </button>
+                          <button className="btn-primary" onClick={() => navigate('/ai-teacher')} style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                            <Brain size={18} /> المعلم الذكي
+                          </button>
+                        </div>
                       </motion.div>
                     )}
                   </>
                 )}
-                {activeHint && (
-                  <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} style={{
-                    padding: '16px', borderRadius: 'var(--radius-sm)', marginBottom: '16px',
-                    background: 'rgba(245, 158, 11, 0.1)', border: '1px solid rgba(245, 158, 11, 0.3)',
-                    display: 'flex', gap: '12px', alignItems: 'flex-start'
-                  }}>
-                    <Lightbulb size={24} color="#F59E0B" style={{ flexShrink: 0 }} />
-                    <div>
-                      <div style={{ fontWeight: 600, color: '#F59E0B', marginBottom: '4px' }}>تلميح المساعدة</div>
-                      <p style={{ fontSize: '0.95rem', color: 'var(--color-text-secondary)', lineHeight: 1.6, whiteSpace: 'pre-wrap' }}>
-                        {activeHint.textAr}
-                      </p>
-                    </div>
-                  </motion.div>
-                )}
 
-                {!showFeedback ? (
+                {/* Action buttons */}
+                {!showFeedback && !showRedirectChoice ? (
                   <div style={{ display: 'flex', gap: '12px' }}>
                     <button className="btn-primary" onClick={handleSubmitAnswer} disabled={!selectedOption} style={{ flex: 1 }}>
-                      <HelpCircle size={18} /> تأكيد الإجابة
-                    </button>
-                    <button 
-                      className="btn-secondary" 
-                      onClick={handleUseHint} 
-                      disabled={hintLoading || activeHint || hints?.filter((h: any) => h.level === (phase === 'q-understanding' ? 'UNDERSTANDING' : phase === 'q-application' ? 'APPLICATION' : 'REASONING')).length === 0}
-                      style={{ padding: '0 20px' }}
-                    >
-                      <Lightbulb size={18} /> {hintLoading ? '...' : 'تلميح'}
+                      <HelpCircle size={18} /> {showHintOnError ? 'تأكيد مرة أخرى' : 'تأكيد الإجابة'}
                     </button>
                   </div>
-                ) : (
+                ) : showFeedback && !showRedirectChoice ? (
                   <button className="btn-primary" onClick={handleNext}>
                     التالي <ChevronLeft size={18} />
                   </button>
-                )}
+                ) : null}
               </div>
             ) : (
               <div className="glass-card" style={{ padding: '32px', textAlign: 'center' }}>
@@ -378,9 +418,7 @@ export default function NodePage() {
                 </div>
               )}
               <div style={{ display: 'flex', gap: '12px', justifyContent: 'center' }}>
-                <button className="btn-primary" onClick={() => navigate('/map')}>
-                  العودة للخارطة
-                </button>
+                <button className="btn-primary" onClick={() => navigate('/map')}>العودة للخارطة</button>
                 <button className="btn-secondary" onClick={() => navigate('/ai-teacher')}>
                   <Brain size={18} /> اسأل المعلم الذكي
                 </button>

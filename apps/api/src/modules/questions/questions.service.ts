@@ -37,8 +37,15 @@ export class QuestionsService {
     let isCorrect = false;
     let finalSelectedId: string | null = null;
 
-    if (question.type === 'ORDER' || question.type === 'DRAG_DROP') {
-      // For ORDER and DRAG_DROP, selectedOptionId is an array of option IDs in the user's order
+    if (question.type === 'FILL_BLANK') {
+      // For FILL_BLANK, compare text answer with correct option text
+      const correctOption = question.options.find((o) => o.isCorrect);
+      const userAnswer = String(selectedOptionId).trim().toLowerCase();
+      const correctText = correctOption?.textAr?.trim().toLowerCase() || '';
+      isCorrect = userAnswer === correctText;
+      finalSelectedId = correctOption?.id || null;
+    } else if (question.type === 'ORDER' || question.type === 'DRAG_DROP' || question.type === 'CLASSIFY') {
+      // For ORDER, DRAG_DROP, and CLASSIFY: selectedOptionId is an array of option IDs
       const selectedIds = Array.isArray(selectedOptionId) 
         ? selectedOptionId 
         : (typeof selectedOptionId === 'string' ? selectedOptionId.split(',') : []);
