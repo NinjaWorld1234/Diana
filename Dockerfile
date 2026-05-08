@@ -2,7 +2,7 @@
 FROM node:20-alpine AS base
 ENV PNPM_HOME="/pnpm"
 ENV PATH="$PNPM_HOME:$PATH"
-RUN corepack enable && corepack prepare pnpm@latest --activate
+RUN corepack enable && corepack prepare pnpm@10.28.0 --activate
 
 # ─── Build Stage ───
 FROM base AS builder
@@ -10,6 +10,9 @@ WORKDIR /app
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 COPY apps/api/package.json ./apps/api/
 COPY apps/web/package.json ./apps/web/
+
+# Copy prisma schema BEFORE install so postinstall can find it
+COPY apps/api/prisma ./apps/api/prisma
 
 # Install all dependencies (including devDependencies needed for build)
 RUN pnpm install --frozen-lockfile
