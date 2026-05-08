@@ -16,14 +16,15 @@ const STATUS_STYLES: Record<string, any> = {
 /* ── Leaf Node (sub-concept bubble) ── */
 function LeafNodeComponent({ data }: { data: any }) {
   const statusStyle = STATUS_STYLES[data.status] || STATUS_STYLES.LOCKED;
+  const isLocked = data.status === 'LOCKED';
   return (
     <div style={{
       minWidth: '180px', maxWidth: '220px', padding: '10px 14px',
       borderRadius: '20px', textAlign: 'center', direction: 'rtl',
       background: statusStyle.bg, opacity: statusStyle.opacity,
-      border: `2px solid ${data.color || statusStyle.border}`,
+      border: `2px solid ${isLocked ? statusStyle.border : (data.color || statusStyle.border)}`,
       fontSize: '0.8rem', fontWeight: 600, lineHeight: 1.4,
-      color: 'var(--color-text)', cursor: data.status !== 'LOCKED' ? 'pointer' : 'not-allowed',
+      color: 'var(--color-text)', cursor: !isLocked ? 'pointer' : 'not-allowed',
     }}>
       <Handle type="target" position={Position.Right} id="right-target" style={{ opacity: 0 }} />
       {data.titleAr}
@@ -36,14 +37,15 @@ function LeafNodeComponent({ data }: { data: any }) {
 function BranchNodeComponent({ data }: { data: any }) {
   const statusStyle = STATUS_STYLES[data.status] || STATUS_STYLES.LOCKED;
   const Icon = statusStyle.icon;
+  const isLocked = data.status === 'LOCKED';
   return (
     <div style={{
       width: '280px', padding: '14px 20px',
       borderRadius: '16px', textAlign: 'center', direction: 'rtl',
-      background: `${data.color || '#3B82F6'}18`,
-      border: `2px solid ${data.color || statusStyle.border}`,
+      background: isLocked ? statusStyle.bg : `${data.color || '#3B82F6'}18`,
+      border: `2px solid ${isLocked ? statusStyle.border : (data.color || statusStyle.border)}`,
       opacity: statusStyle.opacity,
-      cursor: data.status !== 'LOCKED' ? 'pointer' : 'not-allowed',
+      cursor: !isLocked ? 'pointer' : 'not-allowed',
       position: 'relative',
     }}>
       <Handle type="target" position={Position.Right} id="right-target" style={{ opacity: 0 }} />
@@ -53,7 +55,7 @@ function BranchNodeComponent({ data }: { data: any }) {
         </div>
       )}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', marginBottom: '4px' }}>
-        <Icon size={16} color={data.color || statusStyle.border} />
+        <Icon size={16} color={isLocked ? statusStyle.border : (data.color || statusStyle.border)} />
         <span style={{ fontSize: '0.9rem', fontWeight: 700, lineHeight: 1.4 }}>{data.titleAr}</span>
       </div>
       {data.masteryScore > 0 && (

@@ -17,14 +17,38 @@ export class AuthService {
     if (existing) throw new ConflictException('البريد مسجل مسبقاً');
 
     const hash = await bcrypt.hash(dto.password, 12);
+    const userRole = (dto.role as Role) || Role.STUDENT;
+    
     const user = await this.prisma.user.create({
       data: {
         email: dto.email,
         name: dto.name,
         passwordHash: hash,
-        role: (dto.role as Role) || Role.STUDENT,
+        role: userRole,
       },
     });
+
+    if (userRole === Role.STUDENT) {
+      const firstNode = await this.prisma.conceptNode.findFirst({
+        orderBy: { order: 'asc' },
+      });
+      if (firstNode) {
+        await this.prisma.nodeProgress.create({
+          data: { userId: user.id, nodeId: firstNode.id, status: 'IN_PROGRESS' },
+        });
+      }
+    } else {
+      const allNodes = await this.prisma.conceptNode.findMany();
+      if (allNodes.length > 0) {
+        await this.prisma.nodeProgress.createMany({
+          data: allNodes.map((node) => ({
+            userId: user.id,
+            nodeId: node.id,
+            status: 'IN_PROGRESS',
+          })),
+        });
+      }
+    }
 
     return this.generateTokens(user);
   }
