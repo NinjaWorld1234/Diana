@@ -24,4 +24,8 @@ fi
 
 echo "🚀 Starting API server..."
 cd /app
+
+echo "🖼️ Syncing missing images/figures to database..."
+pnpm --filter api run db:sync-figures || echo "⚠️ Sync figures skipped/failed, continuing..."
+
 exec node apps/api/dist/src/main.js
