@@ -1,12 +1,11 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { Outlet, NavLink, useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../../stores/auth.store';
 import { useThemeStore } from '../../stores/theme.store';
-import { useQuery } from '@tanstack/react-query';
-import { adaptiveApi } from '../../lib/api';
 import { Map, Brain, Calculator, BarChart3, User, LogOut, Beaker, Gamepad2, Sun, Moon, Shield, Menu, X } from 'lucide-react';
 
-const baseNavItems = [
+const mainNavItems = [
+  { path: '/map', label: 'الخارطة', icon: Map },
   { path: '/ai-teacher', label: 'المعلم الذكي', icon: Brain },
   { path: '/calculator', label: 'الحاسبات', icon: Calculator },
   { path: '/mini-games', label: 'الألعاب التفاعلية', icon: Gamepad2 },
@@ -23,22 +22,6 @@ export default function Layout() {
   const { theme, toggleTheme } = useThemeStore();
   const navigate = useNavigate();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-
-  // Check if student has any progress to decide if map should be shown
-  const { data: masteryMap } = useQuery({
-    queryKey: ['mastery-map-nav'],
-    queryFn: () => adaptiveApi.getMasteryMap(),
-    enabled: !!user,
-    staleTime: 60000,
-  });
-
-  const isPrivileged = user?.role === 'TEACHER' || user?.role === 'ADMIN';
-  const hasProgress = isPrivileged || (masteryMap?.some((n: any) => n.status === 'COMPLETED' || n.status === 'IN_PROGRESS'));
-
-  // Show map link only if user has progress or is teacher/admin
-  const mainNavItems = hasProgress
-    ? [{ path: '/map', label: 'الخارطة', icon: Map }, ...baseNavItems]
-    : baseNavItems;
 
   const handleNavClick = (path: string) => {
     navigate(path);

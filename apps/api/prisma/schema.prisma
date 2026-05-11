@@ -95,6 +95,8 @@ model ConceptNode {
   titleAr         String     @map("title_ar")
   descriptionAr   String     @map("description_ar") @db.Text
   introductionAr  String     @map("introduction_ar") @db.Text
+  videoUrls       Json?      @map("video_urls")      // [{url, label}]
+  imageUrls       Json?      @map("image_urls")      // [{url, caption, context}]
   order           Int        @default(0)
   unitId          String     @map("unit_id")
   parentId        String?    @map("parent_id")
@@ -230,7 +232,6 @@ enum QuestionType {
   READ_GRAPH
 }
 
-
 enum QuestionLevel {
   UNDERSTANDING
   APPLICATION
@@ -278,12 +279,14 @@ model QuestionOption {
 }
 
 model Hint {
-  id         String @id @default(uuid())
-  textAr     String @map("text_ar") @db.Text
-  type       String // DEFINITION, COMPARISON, REPHRASING, SOLVED_EXAMPLE, PROCEDURE, CAUSAL, THOUGHT_QUESTION
-  costPoints Int    @default(2) @map("cost_points")
-  nodeId     String @map("node_id")
-  level      QuestionLevel
+  id           String  @id @default(uuid())
+  textAr       String  @map("text_ar") @db.Text
+  type         String  // DEFINITION, COMPARISON, REPHRASING, SOLVED_EXAMPLE, PROCEDURE, CAUSAL, THOUGHT_QUESTION
+  costPoints   Int     @default(2) @map("cost_points")
+  imageUrl     String? @map("image_url")
+  imageContext String? @map("image_context") // fire_icon, cold_glass, etc.
+  nodeId       String  @map("node_id")
+  level        QuestionLevel
 
   node ConceptNode @relation(fields: [nodeId], references: [id])
 
@@ -311,6 +314,7 @@ model QuestionAttempt {
   selectedOptionId String?  @map("selected_option_id")
   textAnswer       String?  @map("text_answer")
   isCorrect        Boolean  @map("is_correct")
+  strikeCount      Int      @default(0) @map("strike_count")
   hintsUsed        Int      @default(0) @map("hints_used")
   timeSeconds      Int      @default(0) @map("time_seconds")
   createdAt        DateTime @default(now()) @map("created_at")

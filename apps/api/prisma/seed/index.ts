@@ -6,6 +6,25 @@ const prisma = new PrismaClient();
 async function main() {
   console.log('🌱 بدء عملية ملء قاعدة البيانات...');
 
+  // ─── Cleanup: حذف البيانات القديمة ─────────
+  console.log('🧹 تنظيف البيانات القديمة...');
+  await prisma.questionAttempt.deleteMany();
+  await prisma.masterySnapshot.deleteMany();
+  await prisma.nodeProgress.deleteMany();
+  await prisma.hint.deleteMany();
+  await prisma.questionOption.deleteMany();
+  await prisma.question.deleteMany();
+  await prisma.formula.deleteMany();
+  await prisma.tableReference.deleteMany();
+  await prisma.figureReference.deleteMany();
+  await prisma.contentChunk.deleteMany();
+  await prisma.remediationCard.deleteMany();
+  await prisma.subConcept.deleteMany();
+  await prisma.conceptNode.deleteMany();
+  await prisma.sourceDocument.deleteMany();
+  await prisma.unit.deleteMany();
+  console.log('✅ تم التنظيف.');
+
   // ─── Users ────────────────────────────────
   console.log('👤 إنشاء المستخدمين...');
   const adminHash = await bcrypt.hash('admin123', 12);
@@ -52,7 +71,7 @@ async function main() {
     data: { filename: '22.jpeg', type: 'IMAGE', unitId: unit.id },
   });
 
-  // ─── Concept Nodes (10 + Green Chemistry) ─
+  // ─── Concept Nodes (10 nodes) ─
   console.log('🗺️ إنشاء العقد المفاهيمية...');
   const nodesData = [
     {
@@ -66,18 +85,31 @@ async function main() {
       descriptionAr: 'أن يميز الطالب بين التفاعل الطارد للطاقة والتفاعل الماص للطاقة',
       introductionAr: 'تقسم التفاعلات إلى قسمين من حيث التغيّرات في الطاقة المصاحبة للتفاعل: تفاعلات طاردة للطاقة تعطي طاقة عند حدوثها، وتفاعلات ماصة للطاقة تحتاج إلى طاقة لحدوثها.',
       order: 2, icon: 'flame', color: '#EF4444',
+      videoUrls: [
+        { url: 'https://www.youtube.com/watch?v=H2Bml7UnHSk', label: 'فيديو التفاعل الطارد للطاقة' },
+        { url: 'https://www.youtube.com/watch?v=IuCf-B1_g88', label: 'فيديو التفاعل الماص للطاقة' },
+      ],
+      imageUrls: [
+        { url: '/assets/node2-comparison.png', caption: 'مقارنة بين التفاعل الطارد والماص للطاقة', context: 'content' },
+      ],
     },
     {
       titleAr: 'المحتوى الحراري والتغير في المحتوى الحراري ΔH',
       descriptionAr: 'أن يفهم الطالب أن ΔH يمثل الفرق بين المحتوى الحراري للمتفاعلات والنواتج',
       introductionAr: 'المحتوى الحراري (H) هو تعبير عن الطاقة المخزّنة في المادة. عند حدوث التفاعل الكيميائي يصاحبه تكسير روابط وتكوين روابط جديدة، فيتغير المحتوى الحراري للمواد. التغيُّر في المحتوى الحراري يُسمى حرارة التفاعل ويُرمز له بالرمز ΔH.',
       order: 3, icon: 'thermometer', color: '#3B82F6',
+      imageUrls: [
+        { url: '/assets/node3-graph.png', caption: 'الرسم البياني لمنحنى الطاقة (طارد/ماص)', context: 'content' },
+      ],
     },
     {
       titleAr: 'المعادلة الكيميائية الحرارية',
       descriptionAr: 'أن يعرف الطالب معنى المعادلة الكيميائية الحرارية ودلالة ΔH فيها',
       introductionAr: 'تُسمّى المعادلة الكيميائية الموزونة التي يُشار فيها إلى كمية الحرارة المصاحبة للتفاعل الكيميائي بالمعادلة الكيميائية الحرارية. الإشارة السالبة تعني تفاعلاً طارداً والإشارة الموجبة تعني تفاعلاً ماصاً.',
       order: 4, icon: 'file-text', color: '#8B5CF6',
+      imageUrls: [
+        { url: '/assets/node4-thermal.png', caption: 'أمثلة على المعادلات الكيميائية الحرارية', context: 'content' },
+      ],
     },
     {
       titleAr: 'طاقة الرابطة الكيميائية',
@@ -88,7 +120,7 @@ async function main() {
     {
       titleAr: 'حساب حرارة التفاعل باستخدام طاقة الروابط',
       descriptionAr: 'أن يطبق الطالب قانون حساب حرارة التفاعل باستخدام طاقات الروابط',
-      introductionAr: 'يُستفاد من طاقة الروابط في حساب قيمة الطاقة المصاحبة للتفاعلات الكيميائية في الحالة الغازية، وفق العلاقة:\nΔH = مجموع طاقات الروابط المكسِّرة - مجموع طاقات الروابط المتكوِّنة',
+      introductionAr: 'يُستفاد من طاقة الروابط في حساب قيمة الطاقة المصاحبة للتفاعلات الكيميائية في الحالة الغازية، وفق العلاقة:\\nΔH = مجموع طاقات الروابط المكسِّرة - مجموع طاقات الروابط المتكوِّنة',
       order: 6, icon: 'calculator', color: '#10B981',
     },
     {
@@ -108,19 +140,19 @@ async function main() {
       descriptionAr: 'أن يربط الطالب بين الغذاء والطاقة التي يمد بها الجسم',
       introductionAr: 'الغذاء مصدر للطاقة. تختلف القيمة الحرارية من نوع غذائي إلى آخر. السعر الحراري = 4.18 جول. الكربوهيدرات (4.07 سعر/غم)، الدهون (9.08 سعر/غم)، البروتين (4.07 سعر/غم).',
       order: 9, icon: 'utensils', color: '#84CC16',
+      imageUrls: [
+        { url: '/assets/node9-food-table.png', caption: 'جدول القيمة الحرارية لأنواع الغذاء والوقود', context: 'content' },
+      ],
     },
     {
       titleAr: 'التطبيقات الحياتية والمشروع',
       descriptionAr: 'أن يربط الطالب بين مفاهيم الوحدة وتطبيقاتها في الحياة اليومية',
       introductionAr: 'تشمل التطبيقات الحياتية: الكمادات الساخنة (كلوريد الكالسيوم CaCl₂ — تفاعل طارد يرفع الحرارة من 20°س إلى 90°س) والكمادات الباردة (نترات الأمونيوم NH₄NO₃ — تفاعل ماص يخفض الحرارة من 20°س إلى 0°س)، ومشروع البرنامج الغذائي الأسبوعي.',
       order: 10, icon: 'heart-pulse', color: '#EC4899',
-    },
-    {
-      titleAr: 'الكيمياء الخضراء',
-      descriptionAr: 'مفهوم اقتصاد الذرة وكفاءة التفاعل وتقليل التلوث والتفاعلات الصديقة للبيئة',
-      introductionAr: 'الكيمياء الخضراء هي فرع يهتم بتصميم تفاعلات كيميائية تقلل من التلوث وتحقق كفاءة عالية في استخدام المواد. يشمل مفهوم اقتصاد الذرة (Atom Economy) وتفاعلات صديقة للبيئة بنسبة 100%.',
-      order: 11, icon: 'leaf', color: '#22C55E',
-      needsReview: true,
+      imageUrls: [
+        { url: '/assets/node10-pads.png', caption: 'الكمادات الساخنة والباردة — تطبيقات الطاقة', context: 'content' },
+        { url: '/assets/green-chemistry.png', caption: 'الكيمياء الخضراء واقتصاد الذرة', context: 'content' },
+      ],
     },
   ];
 
@@ -167,54 +199,28 @@ async function main() {
     // Node 7: استخدام المعادلة
     { nodeId: nodes[6].id, textAr: 'يمكن استخدام المعادلة الحرارية لحساب كمية الطاقة عند تفاعل كميات مختلفة من المواد باستخدام النسبة والتناسب.', type: 'EXPLANATION', order: 1 },
     { nodeId: nodes[6].id, textAr: 'مثال: يستهلك أحد المطاعم 5 أطنان سنوياً من الفحم.\nC(s) + O₂(g) → CO₂(g) + 394 KJ\nعدد مول الكربون = 5,000,000 ÷ 12 = 416,666.7 mol\nالطاقة = 416,666.7 × 394 = 164,166,679.8 kJ', type: 'EXAMPLE', order: 2 },
+    { nodeId: nodes[6].id, textAr: 'القيمة الحرارية: هي كمية الحرارة الناتجة من حرق غرام واحد من المادة حرقاً تاماً. تُستخدم للتمييز بين أنواع الوقود المختلفة. فمثلاً: الهيدروجين له أعلى قيمة حرارية (141.8 kJ/g) مقارنة بالميثان (55.5 kJ/g) والفحم (32.8 kJ/g).', type: 'EXPLANATION', order: 3 },
 
     // Node 8: حرارة الاحتراق
     { nodeId: nodes[7].id, textAr: 'حرارة الاحتراق: هي كمية الحرارة الناتجة عن حرق مول واحد من المادة حرقاً تاماً في كمية كافية من الأكسجين. تُقاس بالكيلو جول/مول.', type: 'DEFINITION', order: 1 },
     { nodeId: nodes[7].id, textAr: 'القيمة الحرارية: كمية الحرارة الناتجة من حرق غرام واحد من المادة حرقاً تاماً. تُعدّ أحد العوامل التي يُعتمد عليها في التمييز بين أنواع الوقود.', type: 'DEFINITION', order: 2 },
+    { nodeId: nodes[7].id, textAr: 'العلاقة بين حرارة الاحتراق والقيمة الحرارية:\nالقيمة الحرارية = حرارة الاحتراق ÷ الكتلة المولية\nمثال: حرارة احتراق الميثان = 890 kJ/mol\nالكتلة المولية = 16 g/mol\nالقيمة الحرارية = 890 ÷ 16 = 55.6 kJ/g', type: 'EXAMPLE', order: 3 },
 
     // Node 9: القيمة الحرارية للغذاء
     { nodeId: nodes[8].id, textAr: 'الغذاء مصدر للطاقة. تختلف القيمة الحرارية من نوع غذائي إلى آخر. السعر الحراري = 4.18 جول.', type: 'EXPLANATION', order: 1 },
     { nodeId: nodes[8].id, textAr: 'جدول القيمة الحرارية للغذاء:\nكربوهيدرات: 4.07 سعر/غم\nدهون: 9.08 سعر/غم\nبروتين: 4.07 سعر/غم\nخبز: 2.87 سعر/غم\nعسل: 3.18 سعر/غم', type: 'NOTE', order: 2 },
+    { nodeId: nodes[8].id, textAr: 'تحويل السعرات الحرارية إلى جول:\n1 سعر حراري = 4.18 جول\nمثال: إذا كانت وجبة تحتوي 500 سعرة حرارية:\nالطاقة بالجول = 500 × 4.18 = 2090 جول = 2.09 كيلو جول', type: 'EXAMPLE', order: 3 },
 
     // Node 10: التطبيقات
     { nodeId: nodes[9].id, textAr: 'الكمادة الساخنة: تستخدم كلوريد الكالسيوم (CaCl₂) الذي يذوب في الماء بتفاعل طارد يرفع الحرارة من 20°س إلى 90°س.\nCaCl₂(s) + H₂O(l) → CaCl₂·6H₂O(aq) + حرارة', type: 'EXAMPLE', order: 1 },
     { nodeId: nodes[9].id, textAr: 'الكمادة الباردة: تستخدم نترات الأمونيوم (NH₄NO₃) التي تذوب في الماء بتفاعل ماص يخفض الحرارة من 20°س إلى 0°س.\nNH₄NO₃(s) + H₂O(l) + حرارة → NH₄NO₃(aq)', type: 'EXAMPLE', order: 2 },
+    { nodeId: nodes[9].id, textAr: 'تطبيقات عملية على التفاعلات الطاردة والماصة:\n• أكياس التدفئة اليدوية: تستخدم أكسدة الحديد (تفاعل طارد بطيء) لتوليد الحرارة.\n• التبريد الفوري للإصابات: تعتمد على ذوبان أملاح (تفاعل ماص) لخفض الحرارة.\n• الطبخ بالحرارة الكيميائية: تفاعلات طاردة مُتحكَّم بها لتسخين الأغذية.', type: 'EXPLANATION', order: 3 },
 
-    // Node 11: الكيمياء الخضراء (needs-review)
-    { nodeId: nodes[10].id, textAr: 'الكيمياء الخضراء تهتم بتصميم تفاعلات كيميائية صديقة للبيئة. تشمل مفهوم اقتصاد الذرة الذي يسعى لتحقيق كفاءة 100% في استخدام المواد المتفاعلة.', type: 'EXPLANATION', order: 1 },
+
   ];
 
   for (const chunk of contentData) {
     await prisma.contentChunk.create({ data: chunk as any });
-  }
-
-  // ─── Sub-Concepts (YouTube Videos) ────────
-  console.log('🎬 إنشاء الفيديوهات التعليمية...');
-  await prisma.subConcept.create({ data: { titleAr: 'فيديو: التفاعل الطارد للطاقة', contentAr: 'https://www.youtube.com/watch?v=H2Bml7UnHSk', order: 1, nodeId: nodes[1].id } });
-  await prisma.subConcept.create({ data: { titleAr: 'فيديو: التفاعل الماص للطاقة', contentAr: 'https://www.youtube.com/watch?v=IuCf-B1_g88', order: 2, nodeId: nodes[1].id } });
-
-  // ─── Figure References (Images from Word doc) ──
-  console.log('🖼️ إنشاء الصور المرجعية...');
-  const figuresData = [
-    { figureNumber: 1, captionAr: 'التفاعلات الطاردة والماصة للطاقة', imageUrl: '/images/content/image1.png', nodeId: nodes[1].id },
-    { figureNumber: 2, captionAr: 'رمز التفاعل الطارد', imageUrl: '/images/content/image2.png', nodeId: nodes[1].id },
-    { figureNumber: 3, captionAr: 'رمز التفاعل الماص', imageUrl: '/images/content/image3.png', nodeId: nodes[1].id },
-    { figureNumber: 4, captionAr: 'المحتوى الحراري والتغير فيه', imageUrl: '/images/content/image4.png', nodeId: nodes[2].id },
-    { figureNumber: 5, captionAr: 'رسم بياني - تفاعل طارد', imageUrl: '/images/content/image5.png', nodeId: nodes[2].id },
-    { figureNumber: 6, captionAr: 'رسم بياني - تفاعل ماص', imageUrl: '/images/content/image6.png', nodeId: nodes[2].id },
-    { figureNumber: 7, captionAr: 'المعادلة الكيميائية الحرارية', imageUrl: '/images/content/image7.png', nodeId: nodes[3].id },
-    { figureNumber: 8, captionAr: 'تحلل كربونات الكالسيوم', imageUrl: '/images/content/image8.png', nodeId: nodes[3].id },
-    { figureNumber: 9, captionAr: 'المعادلة الحرارية - مثال', imageUrl: '/images/content/image9.png', nodeId: nodes[3].id },
-    { figureNumber: 10, captionAr: 'طاقة الرابطة الكيميائية', imageUrl: '/images/content/image10.png', nodeId: nodes[4].id },
-    { figureNumber: 11, captionAr: 'استخدام المعادلة الحرارية في الحسابات', imageUrl: '/images/content/image11.png', nodeId: nodes[6].id },
-    { figureNumber: 12, captionAr: 'حساب الطاقة من المعادلة الحرارية', imageUrl: '/images/content/image12.png', nodeId: nodes[6].id },
-    { figureNumber: 13, captionAr: 'حرارة الاحتراق', imageUrl: '/images/content/image13.png', nodeId: nodes[7].id },
-    { figureNumber: 14, captionAr: 'القيمة الحرارية للغذاء', imageUrl: '/images/content/image14.png', nodeId: nodes[8].id },
-    { figureNumber: 15, captionAr: 'التطبيقات الحياتية', imageUrl: '/images/content/image15.png', nodeId: nodes[9].id },
-    { figureNumber: 16, captionAr: 'الكيمياء الخضراء', imageUrl: '/images/content/image16.png', nodeId: nodes[10].id },
-  ];
-  for (const fig of figuresData) {
-    await prisma.figureReference.create({ data: fig });
   }
 
   // ─── Formulas ─────────────────────────────
@@ -301,12 +307,12 @@ async function main() {
   );
 
   await createQuestion(
-    { textAr: 'اذكر علامة يمكن ملاحظتها أثناء تفاعل كيميائي تدل على حدوث تغير في الطاقة:', type: 'MCQ', level: 'APPLICATION', variant: 'PRIMARY', nodeId: nodes[0].id, explanationAr: 'جميع هذه العلامات تدل على حدوث تغير في الطاقة أثناء التفاعل الكيميائي.', points: 10 },
+    { textAr: 'أي مما يلي يدل على حدوث تغير في الطاقة أثناء تفاعل كيميائي؟', type: 'MCQ', level: 'APPLICATION', variant: 'PRIMARY', nodeId: nodes[0].id, explanationAr: 'ارتفاع درجة الحرارة وظهور ضوء كلاهما دليل على تغير في الطاقة.', points: 10 },
     [
-      { textAr: 'ضوء', isCorrect: false, explanationAr: 'صحيح جزئياً لكن ليس الإجابة الأكمل.' },
-      { textAr: 'حرارة', isCorrect: false, explanationAr: 'صحيح جزئياً لكن ليس الإجابة الأكمل.' },
-      { textAr: 'إنتاج كهرباء', isCorrect: false, explanationAr: 'صحيح جزئياً لكن ليس الإجابة الأكمل.' },
-      { textAr: 'جميع ما ذكر', isCorrect: true },
+      { textAr: 'ارتفاع درجة الحرارة', isCorrect: false, explanationAr: 'صحيح جزئياً لكن ليس الإجابة الأكمل.' },
+      { textAr: 'ظهور ضوء', isCorrect: false },
+      { textAr: 'جميع ما ذُكر', isCorrect: true },
+      { textAr: 'تغير لون المحلول فقط', isCorrect: false },
     ],
   );
 
@@ -330,12 +336,12 @@ async function main() {
   );
 
   await createQuestion(
-    { textAr: 'صنف التفاعلات التالية في الصندوق المناسب (طارد أو ماص):', type: 'CLASSIFY', level: 'APPLICATION', variant: 'PRIMARY', nodeId: nodes[1].id, explanationAr: 'الخلية الجلفانية واحتراق الشمع تفاعلات طاردة تُنتج طاقة، بينما البناء الضوئي وتحلل كربونات الكالسيوم تفاعلات ماصة تحتاج طاقة.', points: 15 },
+    { textAr: 'أي التفاعلات التالية طاردة للطاقة؟', type: 'MCQ', level: 'APPLICATION', variant: 'PRIMARY', nodeId: nodes[1].id, explanationAr: 'احتراق الميثان تفاعل طارد يُنتج حرارة وضوء.', points: 10 },
     [
-      { textAr: 'الخلية الجلفانية', isCorrect: true, explanationAr: 'طارد' },
-      { textAr: 'احتراق الشمع', isCorrect: true, explanationAr: 'طارد' },
-      { textAr: 'البناء الضوئي', isCorrect: true, explanationAr: 'ماص' },
-      { textAr: 'تحلل كربونات الكالسيوم', isCorrect: true, explanationAr: 'ماص' },
+      { textAr: 'احتراق الميثان', isCorrect: true },
+      { textAr: 'البناء الضوئي', isCorrect: false, explanationAr: 'البناء الضوئي يمتص طاقة ضوئية.' },
+      { textAr: 'تحلل كربونات الكالسيوم', isCorrect: false, explanationAr: 'يحتاج تسخيناً مستمراً — ماص.' },
+      { textAr: 'التحليل الكهربائي للماء', isCorrect: false, explanationAr: 'يحتاج طاقة كهربائية — ماص.' },
     ],
   );
 
@@ -370,12 +376,13 @@ async function main() {
     ],
   );
 
-  // Node 3 APPLICATION (classify graphs)
   await createQuestion(
-    { textAr: 'يُعرض أمامك رسمان بيانيان (منحنى نزولي ومنحنى صعودي). اسحب التصنيف المناسب لكل رسم:', type: 'CLASSIFY', level: 'APPLICATION', variant: 'PRIMARY', nodeId: nodes[2].id, explanationAr: 'المنحنى النزولي يمثل تفاعل طارد (النواتج أقل طاقة)، والمنحنى الصعودي يمثل تفاعل ماص (النواتج أعلى طاقة).', points: 15 },
+    { textAr: 'في تفاعل احتراق غاز الميثان، ΔH = −890 kJ. ما اتجاه انتقال الطاقة في هذا التفاعل؟', type: 'MCQ', level: 'APPLICATION', variant: 'PRIMARY', nodeId: nodes[2].id, explanationAr: 'الإشارة السالبة تعني أن الطاقة خرجت من النظام إلى المحيط، فالتفاعل طارد للحرارة.', points: 10 },
     [
-      { textAr: 'منحنى نزولي ↘', isCorrect: true, explanationAr: 'تفاعل طارد' },
-      { textAr: 'منحنى صعودي ↗', isCorrect: true, explanationAr: 'تفاعل ماص' },
+      { textAr: 'من النظام إلى المحيط (طارد)', isCorrect: true },
+      { textAr: 'من المحيط إلى النظام (ماصّ)', isCorrect: false },
+      { textAr: 'لا يوجد انتقال للطاقة', isCorrect: false },
+      { textAr: 'يعتمد على درجة الحرارة', isCorrect: false },
     ],
   );
 
@@ -400,44 +407,44 @@ async function main() {
     ],
   );
 
-  // Node 4 APPLICATION (drag-drop: CaCO3 decomposition)
   await createQuestion(
-    { textAr: 'إذا علمت أن تحلل كربونات الكالسيوم يحتاج ل 187 كيلو جول، ماذا نستنتج عن التفاعل؟', type: 'MCQ', level: 'APPLICATION', variant: 'PRIMARY', nodeId: nodes[3].id, explanationAr: 'التفاعل يحتاج طاقة لحدوثه (187 كيلو جول)، لذلك هو تفاعل ماص للطاقة.', points: 15 },
+    { textAr: 'في المعادلة: 2H₂(g) + O₂(g) → 2H₂O(l), ΔH = -572 kJ، هل الإشارة السالبة تعني أن التفاعل ماصّ أم طارد؟', type: 'MCQ', level: 'APPLICATION', variant: 'PRIMARY', nodeId: nodes[3].id, explanationAr: 'الإشارة السالبة تدل على أن التفاعل طارد للحرارة وأن الطاقة خرجت من النظام.', points: 10 },
     [
-      { textAr: 'تفاعل طارد', isCorrect: false, explanationAr: 'التفاعل الطارد لا يحتاج إدخال طاقة.' },
-      { textAr: 'تفاعل ماص', isCorrect: true },
-      { textAr: 'لا يمكن التحديد', isCorrect: false },
-      { textAr: 'تفاعل متعادل', isCorrect: false },
+      { textAr: 'طارد للحرارة', isCorrect: true },
+      { textAr: 'ماصّ للحرارة', isCorrect: false },
+      { textAr: 'لا يمكن التحديد من الإشارة', isCorrect: false },
+      { textAr: 'متعادل', isCorrect: false },
     ],
   );
 
-  // ── Node 5 Questions (NEW per doc) ──
-  // Understanding: fill-blank (drag words)
+  // ── Node 5 Questions ──
   await createQuestion(
-    { textAr: 'العملية المصاحبة لتفكك جزيئات المواد المتفاعلة هي ........... والعملية المصاحبة لإنتاج جزيئات المواد الناتجة هي ...........', type: 'CLASSIFY', level: 'UNDERSTANDING', variant: 'PRIMARY', nodeId: nodes[4].id, explanationAr: 'تفكك الجزيئات = كسر روابط = امتصاص طاقة. إنتاج الجزيئات = تكوين روابط = انطلاق طاقة.', points: 10 },
+    { textAr: 'هل كسر الروابط يحتاج طاقة أم يطلق طاقة؟', type: 'MCQ', level: 'UNDERSTANDING', variant: 'PRIMARY', nodeId: nodes[4].id, explanationAr: 'كسر الروابط عملية تحتاج إدخال طاقة (ماصة).', points: 10 },
     [
-      { textAr: 'امتصاص', isCorrect: true, explanationAr: 'تفكك المتفاعلات' },
-      { textAr: 'انطلاق', isCorrect: true, explanationAr: 'إنتاج النواتج' },
+      { textAr: 'يحتاج طاقة (امتصاص)', isCorrect: true },
+      { textAr: 'يطلق طاقة', isCorrect: false, explanationAr: 'تكوين الروابط هو الذي يطلق طاقة.' },
+      { textAr: 'لا علاقة للطاقة بالروابط', isCorrect: false },
+      { textAr: 'يعتمد على نوع الرابطة', isCorrect: false },
     ],
   );
 
-  // Application: order compounds by bond energy
   await createQuestion(
-    { textAr: 'رتب المركبات التالية حسب الطاقة اللازمة لكسر الرابطة فيها من الأقل إلى الأعلى:', type: 'ORDER', level: 'APPLICATION', variant: 'PRIMARY', nodeId: nodes[4].id, explanationAr: 'O₂(498) < CH₄(413×4) < H₂O(464×2) < C₂H₄(614) < N₂(946) — ترتيب حسب طاقة الرابطة الواحدة.', points: 15 },
+    { textAr: 'إذا كانت رابطة ما ذات طاقة رابطة كبيرة، فماذا يمكن أن نستنتج عن قوتها؟', type: 'MCQ', level: 'REASONING', variant: 'PRIMARY', nodeId: nodes[4].id, explanationAr: 'كلما زادت طاقة الرابطة، دلّ ذلك على أنها أقوى وتحتاج طاقة أكبر لكسرها.', points: 15 },
     [
-      { textAr: 'CH₄ (C-H: 413)', isCorrect: true },
-      { textAr: 'H₂O (H-O: 464)', isCorrect: true },
-      { textAr: 'O₂ (O=O: 498)', isCorrect: true },
-      { textAr: 'C₂H₄ (C=C: 614)', isCorrect: true },
-      { textAr: 'N₂ (N≡N: 946)', isCorrect: true },
+      { textAr: 'أنها رابطة قوية تحتاج طاقة كبيرة لكسرها', isCorrect: true },
+      { textAr: 'أنها رابطة ضعيفة', isCorrect: false },
+      { textAr: 'أنها رابطة أيونية فقط', isCorrect: false },
+      { textAr: 'لا يمكن الاستنتاج', isCorrect: false },
     ],
   );
 
-  // Reasoning: fill-blank
   await createQuestion(
-    { textAr: 'إذا كانت رابطة ما ذات طاقة رابطة كبيرة يمكن أن نستنتج عن قوتها أنها ......... (أكمل الفراغ)', type: 'FILL_BLANK', level: 'REASONING', variant: 'PRIMARY', nodeId: nodes[4].id, explanationAr: 'كلما زادت طاقة الرابطة، دلّ ذلك على أنها أقوى وتحتاج طاقة أكبر لكسرها.', points: 15 },
+    { textAr: 'رابطة O=O طاقتها 498 kJ/mol ورابطة H-H طاقتها 436 kJ/mol. أيهما أقوى؟', type: 'MCQ', level: 'APPLICATION', variant: 'PRIMARY', nodeId: nodes[4].id, explanationAr: 'رابطة O=O ذات طاقة أكبر (498 kJ/mol) لذلك هي أقوى وتحتاج طاقة أكبر لكسرها.', points: 10 },
     [
-      { textAr: 'قوية', isCorrect: true },
+      { textAr: 'رابطة O=O لأن طاقتها أكبر', isCorrect: true },
+      { textAr: 'رابطة H-H لأن الهيدروجين أخف', isCorrect: false },
+      { textAr: 'متساويتان في القوة', isCorrect: false },
+      { textAr: 'لا يمكن المقارنة', isCorrect: false },
     ],
   );
 
@@ -453,6 +460,16 @@ async function main() {
   );
 
   await createQuestion(
+    { textAr: 'ما المقصود بحرارة التفاعل المحسوبة من طاقات الروابط؟', type: 'MCQ', level: 'UNDERSTANDING', variant: 'PRIMARY', nodeId: nodes[5].id, explanationAr: 'حرارة التفاعل = مجموع طاقات الروابط المكسورة − مجموع طاقات الروابط المتكونة.', points: 10 },
+    [
+      { textAr: 'الفرق بين طاقات الروابط المكسورة والمتكونة', isCorrect: true },
+      { textAr: 'مجموع طاقات كل الروابط', isCorrect: false },
+      { textAr: 'طاقة أقوى رابطة في التفاعل', isCorrect: false },
+      { textAr: 'درجة حرارة التفاعل', isCorrect: false },
+    ],
+  );
+
+  await createQuestion(
     { textAr: 'رتب الخطوات التالية لحساب حرارة التفاعل باستخدام طاقات الروابط:', type: 'ORDER', level: 'APPLICATION', variant: 'PRIMARY', nodeId: nodes[5].id, explanationAr: 'يجب أولاً تحديد الروابط المكسورة، ثم المتكونة، ثم التعويض في القانون.', points: 15 },
     [
       { textAr: 'تحديد نوع وعدد الروابط المكسرة في المتفاعلات', isCorrect: true },
@@ -463,38 +480,37 @@ async function main() {
     ],
   );
 
-  // ── Node 7 Questions (Updated per doc) ──
-  // Understanding: replaced with the image11 question content
+  // ── Node 7 Questions ──
   await createQuestion(
-    { textAr: 'كمية الحرارة تتناسب مع كمية المادة في المعادلة الحرارية. إذا زادت المولات:', type: 'MCQ', level: 'UNDERSTANDING', variant: 'PRIMARY', nodeId: nodes[6].id, explanationAr: 'كمية الحرارة تتناسب طردياً مع كمية المادة.', points: 10 },
+    { textAr: 'إذا كانت الطاقة المصاحبة لمول واحد معروفة، فماذا يحدث لكمية الطاقة عندما يتضاعف عدد المولات؟', type: 'MCQ', level: 'APPLICATION', variant: 'PRIMARY', nodeId: nodes[6].id, explanationAr: 'كمية الحرارة تتناسب طردياً مع كمية المادة.', points: 10 },
     [
-      { textAr: 'تزداد الحرارة بنفس النسبة', isCorrect: true },
-      { textAr: 'تبقى الحرارة ثابتة', isCorrect: false },
-      { textAr: 'تنقص الحرارة', isCorrect: false },
-      { textAr: 'لا علاقة بين المولات والحرارة', isCorrect: false },
+      { textAr: 'تتضاعف كمية الطاقة', isCorrect: true },
+      { textAr: 'تبقى ثابتة', isCorrect: false },
+      { textAr: 'تنخفض للنصف', isCorrect: false },
+      { textAr: 'لا علاقة بينهما', isCorrect: false },
     ],
   );
 
-  // Application: uses calculator (no result given — student discovers)
   await createQuestion(
-    { textAr: 'استخدم الحاسبة لحساب حرارة التفاعل التالي:\nH₂(g) + Cl₂(g) → 2HCl(g)\nطاقة الروابط: H-H=436, Cl-Cl=242, H-Cl=431\nما نوع هذا التفاعل؟', type: 'MCQ', level: 'APPLICATION', variant: 'PRIMARY', nodeId: nodes[6].id, explanationAr: 'ΔH = (436+242) - (2×431) = 678-862 = -184 kJ → طارد', points: 15 },
+    { textAr: 'اسحب كل مصطلح إلى تعريفه الصحيح (أعلى طاقة، أقل طاقة، طارد، ماص):', type: 'DRAG_DROP', level: 'UNDERSTANDING', variant: 'PRIMARY', nodeId: nodes[6].id, explanationAr: 'ربط المصطلحات بتعريفاتها يسهل الفهم.', points: 15 },
     [
-      { textAr: 'طارد للطاقة', isCorrect: true },
-      { textAr: 'ماص للطاقة', isCorrect: false },
-      { textAr: 'متعادل', isCorrect: false },
-      { textAr: 'لا يمكن التحديد', isCorrect: false },
+      { textAr: 'التفاعل الطارد', isCorrect: true, explanationAr: 'تفاعل يطلق حرارة للوسط' },
+      { textAr: 'التفاعل الماص', isCorrect: true, explanationAr: 'تفاعل يمتص حرارة من الوسط' },
+      { textAr: 'طاقة الرابطة', isCorrect: true, explanationAr: 'الطاقة اللازمة لكسر مول من الروابط' },
     ],
   );
 
-  // Reasoning: fill-blank — تتضاعف
   await createQuestion(
-    { textAr: 'إذا كانت الطاقة المصاحبة لمول واحد معروفة، فماذا يحدث لكمية الطاقة عندما يتضاعف عدد المولات؟ ......... (أكمل الفراغ)', type: 'FILL_BLANK', level: 'REASONING', variant: 'PRIMARY', nodeId: nodes[6].id, explanationAr: 'كمية الحرارة تتناسب طردياً مع عدد المولات. مضاعفة المولات = مضاعفة الطاقة.', points: 15 },
+    { textAr: 'إذا كانت ΔH لمول واحد من المادة = −400 kJ، فكم تكون الطاقة الناتجة من 3 مول؟', type: 'MCQ', level: 'REASONING', variant: 'PRIMARY', nodeId: nodes[6].id, explanationAr: 'الطاقة = 3 × 400 = 1200 kJ لأن الطاقة تتناسب طردياً مع عدد المولات.', points: 15 },
     [
-      { textAr: 'تتضاعف', isCorrect: true },
+      { textAr: '1200 kJ', isCorrect: true },
+      { textAr: '400 kJ', isCorrect: false },
+      { textAr: '133 kJ', isCorrect: false },
+      { textAr: '800 kJ', isCorrect: false },
     ],
   );
 
-  // ── Node 8 Questions (Updated per doc) ──
+  // ── Node 8 Questions ──
   await createQuestion(
     { textAr: 'ما المقصود بحرارة الاحتراق؟', type: 'MCQ', level: 'UNDERSTANDING', variant: 'PRIMARY', nodeId: nodes[7].id, explanationAr: 'حرارة الاحتراق هي كمية الحرارة الناتجة من حرق مول واحد من المادة حرقاً تاماً.', points: 10 },
     [
@@ -505,27 +521,27 @@ async function main() {
     ],
   );
 
-  // Application: without giving the value
   await createQuestion(
-    { textAr: 'أيهما له حرارة احتراق أكبر: الميثان أم الإيثان؟ (ارجع لجدول حرارة الاحتراق)', type: 'MCQ', level: 'APPLICATION', variant: 'PRIMARY', nodeId: nodes[7].id, explanationAr: 'من جدول حرارة الاحتراق: الإيثان (1560 kJ/mol) أكبر من الميثان (890 kJ/mol).', points: 10 },
+    { textAr: 'أيهما له حرارة احتراق أكبر: الميثان أم الإيثان؟', type: 'MCQ', level: 'APPLICATION', variant: 'PRIMARY', nodeId: nodes[7].id, explanationAr: 'حرارة احتراق الإيثان (1560 kJ/mol) أكبر من الميثان (890 kJ/mol).', points: 10 },
     [
-      { textAr: 'الإيثان', isCorrect: true },
-      { textAr: 'الميثان', isCorrect: false },
+      { textAr: 'الإيثان (1560 kJ/mol)', isCorrect: true },
+      { textAr: 'الميثان (890 kJ/mol)', isCorrect: false },
       { textAr: 'متساويان', isCorrect: false },
       { textAr: 'لا يمكن المقارنة', isCorrect: false },
     ],
   );
 
-  // Reasoning: why combustion heat is a good standard
   await createQuestion(
-    { textAr: 'لماذا تعد حرارة الاحتراق معياراً مناسباً للمقارنة بين أنواع الوقود؟', type: 'MCQ', level: 'REASONING', variant: 'PRIMARY', nodeId: nodes[7].id, explanationAr: 'حرارة الاحتراق تقاس لمول واحد من المادة، مما يجعل المقارنة عادلة بين مواد مختلفة.', points: 15 },
+    { textAr: 'لماذا تُستخدم حرارة الاحتراق في المقارنة بين أنواع الوقود؟', type: 'MCQ', level: 'REASONING', variant: 'PRIMARY', nodeId: nodes[7].id, explanationAr: 'لأنها تقيس كمية الطاقة لمول واحد من الوقود، مما يسمح بمقارنة عادلة بين أنواع الوقود المختلفة.', points: 15 },
     [
-      { textAr: 'لأنها تمثل درجة حرارة اللهب', isCorrect: false },
-      { textAr: 'لأنها تقيس كمية الحرارة لمول واحد مما يجعل المقارنة عادلة', isCorrect: true },
-      { textAr: 'لأنها تعتمد على حجم المادة', isCorrect: false },
-      { textAr: 'لأنها تقيس سرعة الاحتراق', isCorrect: false },
+      { textAr: 'لأنها توفر مقياساً موحداً لمقارنة طاقة مول واحد من كل وقود', isCorrect: true },
+      { textAr: 'لأنها تقيس درجة حرارة اللهب', isCorrect: false },
+      { textAr: 'لأنها تعتمد على لون اللهب', isCorrect: false },
+      { textAr: 'لا يمكن استخدامها في المقارنة', isCorrect: false },
     ],
   );
+
+  // ── Node 9 Questions ──
   await createQuestion(
     { textAr: 'ماذا نعني بالقيمة الحرارية للغذاء؟', type: 'MCQ', level: 'UNDERSTANDING', variant: 'PRIMARY', nodeId: nodes[8].id, explanationAr: 'القيمة الحرارية للغذاء تعبر عن كمية الطاقة التي يمنحها الغذاء عند حرقه.', points: 10 },
     [
@@ -543,6 +559,16 @@ async function main() {
       { textAr: '8.14 سعر حراري', isCorrect: false, explanationAr: 'هذا فقط طاقة الكربوهيدرات.' },
       { textAr: '27.24 سعر حراري', isCorrect: false, explanationAr: 'هذا فقط طاقة الدهون.' },
       { textAr: '50 سعر حراري', isCorrect: false },
+    ],
+  );
+
+  await createQuestion(
+    { textAr: 'إذا أراد شخص تقليل السعرات الحرارية، هل يقلل الدهون أم الكربوهيدرات؟ ولماذا؟', type: 'MCQ', level: 'REASONING', variant: 'PRIMARY', nodeId: nodes[8].id, explanationAr: 'الدهون تعطي 9.08 سعر/غم بينما الكربوهيدرات 4.07 سعر/غم، لذا تقليل الدهون أكثر فعالية.', points: 15 },
+    [
+      { textAr: 'يقلل الدهون لأن قيمتها الحرارية أعلى (9.08 سعر/غم)', isCorrect: true },
+      { textAr: 'يقلل الكربوهيدرات لأنها أكثر ضرراً', isCorrect: false },
+      { textAr: 'لا فرق بينهما', isCorrect: false },
+      { textAr: 'يقلل البروتينات فقط', isCorrect: false },
     ],
   );
 
@@ -564,6 +590,16 @@ async function main() {
       { textAr: 'تفاعل طارد للحرارة', isCorrect: false, explanationAr: 'الطارد يرفع الحرارة، لكن الكمادة الباردة تخفضها.' },
       { textAr: 'لا يوجد تفاعل', isCorrect: false },
       { textAr: 'تفاعل متعادل', isCorrect: false },
+    ],
+  );
+
+  await createQuestion(
+    { textAr: 'لماذا تُعدّ الكمادة الساخنة مثالاً تطبيقياً على التفاعل الطارد في الحياة؟', type: 'MCQ', level: 'REASONING', variant: 'PRIMARY', nodeId: nodes[9].id, explanationAr: 'لأنها تعتمد على تفاعل كيميائي يطلق حرارة للوسط المحيط، وهو تعريف التفاعل الطارد.', points: 15 },
+    [
+      { textAr: 'لأن التفاعل داخلها يطلق حرارة للجسم (طارد)', isCorrect: true },
+      { textAr: 'لأنها تمتص حرارة من الجسم', isCorrect: false },
+      { textAr: 'لأنها تعمل بالكهرباء', isCorrect: false },
+      { textAr: 'لا علاقة لها بالتفاعلات الكيميائية', isCorrect: false },
     ],
   );
 

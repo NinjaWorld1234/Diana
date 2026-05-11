@@ -1,90 +1,311 @@
-import { useCallback, useMemo } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { ReactFlow, Background, Controls, type Node, type Edge, Position, Handle, MarkerType } from '@xyflow/react';
+import {
+  ReactFlow, Background, Controls,
+  type Node, type Edge,
+  Position, Handle,
+} from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
 import { motion } from 'framer-motion';
 import { adaptiveApi } from '../lib/api';
 import { Lock, Unlock, CheckCircle, AlertTriangle } from 'lucide-react';
 
+/* ═══════════════════════════════════════════════
+   Layout Constants (pixel-perfect for straight edges)
+   ═══════════════════════════════════════════════ */
+const TOPIC_H = 120;  // ارتفاع العقدة الرئيسية ثابت
+const SUB_H   = 70;   // ارتفاع العقدة الفرعية ثابت
+
+/* ═══════════════════════════════════════════════
+   Status Styles
+   ═══════════════════════════════════════════════ */
 const STATUS_STYLES: Record<string, any> = {
-  LOCKED: { bg: 'var(--color-bg-hover)', border: 'var(--color-border)', opacity: 0.5, icon: Lock },
-  IN_PROGRESS: { bg: 'var(--color-bg-secondary)', border: '#3B82F6', opacity: 1, icon: Unlock },
-  COMPLETED: { bg: 'var(--color-bg-secondary)', border: '#10B981', opacity: 1, icon: CheckCircle },
+  LOCKED:      { bg: '#f8fafc', border: '#cbd5e1', opacity: 0.7, icon: Lock, shadow: 'none', text: '#64748b' },
+  IN_PROGRESS: { bg: '#ffffff', border: '#3b82f6', opacity: 1, icon: Unlock, shadow: '0 8px 24px rgba(59,130,246,0.2)', text: '#1e293b' },
+  COMPLETED:   { bg: '#ffffff', border: '#10b981', opacity: 1, icon: CheckCircle, shadow: '0 8px 24px rgba(16,185,129,0.15)', text: '#1e293b' },
 };
 
-/* ── Leaf Node (sub-concept bubble) ── */
-function LeafNodeComponent({ data }: { data: any }) {
-  const statusStyle = STATUS_STYLES[data.status] || STATUS_STYLES.LOCKED;
-  const isLocked = data.status === 'LOCKED';
-  return (
-    <div style={{
-      minWidth: '180px', maxWidth: '220px', padding: '10px 14px',
-      borderRadius: '20px', textAlign: 'center', direction: 'rtl',
-      background: statusStyle.bg, opacity: statusStyle.opacity,
-      border: `2px solid ${isLocked ? statusStyle.border : (data.color || statusStyle.border)}`,
-      fontSize: '0.8rem', fontWeight: 600, lineHeight: 1.4,
-      color: 'var(--color-text)', cursor: !isLocked ? 'pointer' : 'not-allowed',
-    }}>
-      <Handle type="target" position={Position.Right} id="right-target" style={{ opacity: 0 }} />
-      {data.titleAr}
-      <Handle type="source" position={Position.Left} id="left-source" style={{ opacity: 0 }} />
-    </div>
-  );
-}
-
-/* ── Branch Node (main concept) ── */
-function BranchNodeComponent({ data }: { data: any }) {
-  const statusStyle = STATUS_STYLES[data.status] || STATUS_STYLES.LOCKED;
-  const Icon = statusStyle.icon;
-  const isLocked = data.status === 'LOCKED';
-  return (
-    <div style={{
-      width: '280px', padding: '14px 20px',
-      borderRadius: '16px', textAlign: 'center', direction: 'rtl',
-      background: isLocked ? statusStyle.bg : `${data.color || '#3B82F6'}18`,
-      border: `2px solid ${isLocked ? statusStyle.border : (data.color || statusStyle.border)}`,
-      opacity: statusStyle.opacity,
-      cursor: !isLocked ? 'pointer' : 'not-allowed',
-      position: 'relative',
-    }}>
-      <Handle type="target" position={Position.Right} id="right-target" style={{ opacity: 0 }} />
-      {data.needsReview && (
-        <div style={{ position: 'absolute', top: -8, left: -8, background: '#F59E0B', borderRadius: '50%', width: 22, height: 22, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-          <AlertTriangle size={12} color="black" />
-        </div>
-      )}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', marginBottom: '4px' }}>
-        <Icon size={16} color={isLocked ? statusStyle.border : (data.color || statusStyle.border)} />
-        <span style={{ fontSize: '0.9rem', fontWeight: 700, lineHeight: 1.4 }}>{data.titleAr}</span>
-      </div>
-      {data.masteryScore > 0 && (
-        <div style={{ fontSize: '0.7rem', fontWeight: 600, color: data.masteryScore >= 70 ? '#10B981' : '#F59E0B' }}>
-          إتقان: {Math.round(data.masteryScore)}%
-        </div>
-      )}
-      <Handle type="source" position={Position.Left} id="left-source" style={{ opacity: 0 }} />
-    </div>
-  );
-}
-
-/* ── Root Node (unit title) ── */
+/* ═══════════════════════════════════════════════
+   Root Node — "الطاقة في التفاعلات الكيميائية"
+   ═══════════════════════════════════════════════ */
 function RootNodeComponent({ data }: { data: any }) {
   return (
     <div style={{
-      padding: '18px 28px', borderRadius: '16px', textAlign: 'center', direction: 'rtl',
-      background: 'linear-gradient(135deg, #6366F120, #8B5CF620)',
-      border: '3px solid #8B5CF6',
-      fontWeight: 800, fontSize: '1rem', color: 'var(--color-text)',
+      padding: '20px 28px',
+      borderRadius: '16px',
+      background: 'linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%)',
+      border: '2px solid rgba(255,255,255,0.2)',
+      color: '#fff',
+      textAlign: 'center',
+      direction: 'rtl',
+      fontWeight: 800,
+      fontSize: '1rem',
+      lineHeight: 1.6,
+      minWidth: '180px',
+      maxWidth: '200px',
+      minHeight: '70px',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      boxShadow: '0 10px 30px rgba(79, 70, 229, 0.4), inset 0 2px 4px rgba(255,255,255,0.3)',
+      textShadow: '0 2px 4px rgba(0,0,0,0.2)',
+      cursor: 'pointer',
     }}>
-      {data.titleAr}
-      <Handle type="source" position={Position.Left} id="left-source" style={{ opacity: 0 }} />
+      <Handle type="source" position={Position.Right} id="r" style={{ opacity: 0 }} />
+      {data.label}
     </div>
   );
 }
 
-const nodeTypes = { branch: BranchNodeComponent, leaf: LeafNodeComponent, root: RootNodeComponent };
+/* ═══════════════════════════════════════════════
+   Topic Node — 10 main concept nodes (clickable)
+   ═══════════════════════════════════════════════ */
+function TopicNodeComponent({ data }: { data: any }) {
+  const s = STATUS_STYLES[data.status] || STATUS_STYLES.LOCKED;
+  const Icon = s.icon;
 
+  return (
+    <div style={{
+      width: '200px',
+      height: `${TOPIC_H}px`,
+      boxSizing: 'border-box' as const,
+      display: 'flex',
+      flexDirection: 'column',
+      justifyContent: 'center',
+      alignItems: 'center',
+      padding: '16px 12px',
+      borderRadius: '14px',
+      background: s.bg,
+      border: `2px solid ${data.color || s.border}`,
+      opacity: s.opacity,
+      cursor: data.status !== 'LOCKED' ? 'pointer' : 'not-allowed',
+      transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+      direction: 'rtl',
+      textAlign: 'center',
+      position: 'relative',
+      color: s.text,
+      boxShadow: data.status === 'IN_PROGRESS' 
+        ? `0 10px 25px ${data.color || '#3b82f6'}30` 
+        : (data.status === 'COMPLETED' ? s.shadow : '0 2px 8px rgba(0,0,0,0.04)'),
+    }}
+    onMouseEnter={(e) => {
+      if (data.status !== 'LOCKED') {
+        (e.currentTarget as HTMLDivElement).style.transform = 'translateY(-3px)';
+      }
+    }}
+    onMouseLeave={(e) => {
+      if (data.status !== 'LOCKED') {
+        (e.currentTarget as HTMLDivElement).style.transform = 'translateY(0)';
+      }
+    }}
+    >
+      <Handle type="target" position={Position.Left} id="l" style={{ opacity: 0 }} />
+      <Handle type="source" position={Position.Right} id="r" style={{ opacity: 0 }} />
+
+      {data.needsReview && (
+        <div style={{
+          position: 'absolute', top: -8, right: -8,
+          background: '#F59E0B', borderRadius: '50%',
+          width: 24, height: 24,
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          boxShadow: '0 2px 8px rgba(245, 158, 11, 0.4)',
+          border: '2px solid #fff'
+        }}>
+          <AlertTriangle size={14} color="#fff" />
+        </div>
+      )}
+
+      <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '8px' }}>
+        <div style={{ 
+          background: `${data.color || s.border}15`, 
+          padding: '8px', 
+          borderRadius: '10px',
+          color: data.color || s.border
+        }}>
+          <Icon size={20} />
+        </div>
+      </div>
+      <div style={{ fontSize: '0.85rem', fontWeight: 700, lineHeight: 1.5, marginBottom: data.masteryScore > 0 ? '4px' : '0' }}>
+        {data.titleAr}
+      </div>
+      {data.masteryScore > 0 && (
+        <div style={{
+          fontSize: '0.75rem', fontWeight: 700,
+          color: data.masteryScore >= 70 ? '#059669' : '#d97706',
+          background: data.masteryScore >= 70 ? '#d1fae5' : '#fef3c7',
+          padding: '2px 8px',
+          borderRadius: '12px',
+          display: 'inline-block'
+        }}>
+          إتقان: {Math.round(data.masteryScore)}%
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ═══════════════════════════════════════════════
+   Sub-concept Leaf Node (descriptive question title)
+   ═══════════════════════════════════════════════ */
+function SubConceptNodeComponent({ data }: { data: any }) {
+  const subStatus = data.subStatus || 'LOCKED'; // 'LOCKED' | 'OPEN' | 'COMPLETED'
+  const isLocked = subStatus === 'LOCKED';
+  const isCompleted = subStatus === 'COMPLETED';
+  
+  // 0 = الفهم (أزرق)، 1 = التطبيق (أخضر)، 2 = الاستدلال (بنفسجي)
+  const colors = [
+    { bg: '#eff6ff', border: '#bfdbfe', hoverBg: '#dbeafe', hoverBorder: '#60a5fa', text: '#1e40af', icon: '📖', shadow: 'rgba(59, 130, 246, 0.15)' },
+    { bg: '#f0fdfa', border: '#bfe8e5', hoverBg: '#ccfbf1', hoverBorder: '#2dd4bf', text: '#0f766e', icon: '⚙️', shadow: 'rgba(20, 184, 166, 0.15)' },
+    { bg: '#faf5ff', border: '#e9d5ff', hoverBg: '#f3e8ff', hoverBorder: '#c084fc', text: '#6b21a8', icon: '💡', shadow: 'rgba(168, 85, 247, 0.15)' },
+  ];
+
+  const lockedStyle = { bg: '#f8fafc', border: '#e2e8f0', hoverBg: '#f8fafc', hoverBorder: '#e2e8f0', text: '#94a3b8', icon: '🔒', shadow: 'transparent' };
+  const completedStyle = { ...colors[data.levelIndex] || colors[0], icon: '✅' };
+
+  const c = isLocked ? lockedStyle : isCompleted ? completedStyle : (colors[data.levelIndex] || colors[0]);
+
+  return (
+    <div style={{
+      width: '260px',
+      height: `${SUB_H}px`,
+      boxSizing: 'border-box' as const,
+      padding: '12px 14px',
+      borderRadius: '12px',
+      background: c.bg,
+      border: `2px solid ${c.border}`,
+      direction: 'rtl',
+      textAlign: 'center',
+      fontSize: '0.75rem',
+      fontWeight: 700,
+      color: c.text,
+      lineHeight: 1.6,
+      cursor: isLocked ? 'not-allowed' : 'pointer',
+      transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+      boxShadow: `0 4px 12px ${c.shadow}`,
+      display: 'flex',
+      alignItems: 'center',
+      gap: '10px',
+      position: 'relative',
+      overflow: 'hidden'
+    }}
+    onMouseEnter={(e) => { 
+      if (!isLocked) {
+        const el = e.currentTarget as HTMLDivElement;
+        el.style.background = c.hoverBg; 
+        el.style.borderColor = c.hoverBorder; 
+        el.style.transform = 'translateY(-2px) scale(1.02)';
+        el.style.boxShadow = `0 8px 20px ${c.shadow}`;
+      }
+    }}
+    onMouseLeave={(e) => { 
+      if (!isLocked) {
+        const el = e.currentTarget as HTMLDivElement;
+        el.style.background = c.bg; 
+        el.style.borderColor = c.border; 
+        el.style.transform = 'translateY(0) scale(1)';
+        el.style.boxShadow = `0 4px 12px ${c.shadow}`;
+      }
+    }}
+    >
+      <Handle type="target" position={Position.Left} id="l" style={{ opacity: 0 }} />
+      <div style={{
+        background: '#fff',
+        borderRadius: '50%',
+        width: '28px',
+        height: '28px',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        flexShrink: 0,
+        boxShadow: `0 2px 4px ${c.shadow}`,
+        fontSize: '0.9rem'
+      }}>
+        {c.icon}
+      </div>
+      <div style={{ flex: 1, textAlign: 'center', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <span>{data.label}</span>
+      </div>
+    </div>
+  );
+}
+
+const nodeTypes = {
+  root: RootNodeComponent,
+  topic: TopicNodeComponent,
+  sub: SubConceptNodeComponent,
+};
+
+/* ═══════════════════════════════════════════════
+   Sub-node titles — مستمدة من أسئلة بنك الأسئلة
+   كل عقدة فرعية = سؤال فعلي (فهم، تطبيق، استدلال)
+   ═══════════════════════════════════════════════ */
+const NODE_SUBS: Record<number, string[]> = {
+  // العقدة 1: تغيرات الطاقة
+  1: [
+    'ما المقصود بتغير الطاقة في التفاعل؟',
+    'ما الدليل على حدوث تغير في الطاقة؟',
+    'ماذا نستنتج من ظهور ضوء وحرارة؟',
+  ],
+  // العقدة 2: الطارد والماص
+  2: [
+    'هل انخفاض الحرارة يعني تفاعلاً طارداً؟',
+    'أي التفاعلات التالية طاردة للطاقة؟',
+    'ماذا نستنتج إذا احتاج تفاعل تسخيناً مستمراً؟',
+  ],
+  // العقدة 3: التغير ΔH
+  3: [
+    'متى تكون ΔH سالبة؟',
+    'ما اتجاه انتقال الطاقة عند ΔH سالبة؟',
+    'الفرق بين الطارد والماص بيانياً',
+  ],
+  // العقدة 4: المعادلة الحرارية
+  4: [
+    'ما المقصود بالمعادلة الكيميائية الحرارية؟',
+    'ماذا تعني ΔH = -572 KJ في معادلة الماء؟',
+    'الإشارة السالبة والموجبة في ΔH',
+  ],
+  // العقدة 5: طاقة الرابطة
+  5: [
+    'هل كسر الروابط يحتاج أم يطلق طاقة؟',
+    'ماذا نستنتج عن رابطة ذات طاقة كبيرة؟',
+    'العلاقة بين قوة الرابطة وطاقتها',
+  ],
+  // العقدة 6: حساب حرارة التفاعل
+  6: [
+    'ماذا نستنتج إذا كانت المكسورة > المتكونة؟',
+    'رتب خطوات حساب حرارة التفاعل',
+    'التعويض في قانون ΔH بالأمثلة',
+  ],
+  // العقدة 7: الحسابات بالمعادلة
+  7: [
+    'ماذا يحدث للطاقة عند تضاعف المولات؟',
+    'اسحب كل مصطلح إلى تعريفه الصحيح',
+    'حساب الطاقة لكميات مختلفة من المواد',
+  ],
+  // العقدة 8: حرارة الاحتراق
+  8: [
+    'ما المقصود بحرارة الاحتراق؟',
+    'أيهما أكبر حرارة احتراق: الميثان أم الإيثان؟',
+    'العلاقة بين حرارة الاحتراق والقيمة الحرارية',
+  ],
+  // العقدة 9: قيمة الغذاء
+  9: [
+    'ماذا نعني بالقيمة الحرارية للغذاء؟',
+    'حساب الطاقة من كربوهيدرات ودهون',
+    'تحويل السعرات الحرارية إلى جول',
+  ],
+  // العقدة 10: التطبيقات الحياتية
+  10: [
+    'كيف ترتبط الكمادات بمفاهيم الطاقة؟',
+    'الكمادة الباردة: ماص أم طارد؟',
+    'تطبيقات عملية على التفاعلات الطاردة والماصة',
+  ],
+};
+
+/* ═══════════════════════════════════════════════
+   Page Component
+   ═══════════════════════════════════════════════ */
 export default function ConceptMapPage() {
   const navigate = useNavigate();
   const { data: masteryMap, isLoading } = useQuery({
@@ -92,64 +313,147 @@ export default function ConceptMapPage() {
     queryFn: () => adaptiveApi.getMasteryMap(),
   });
 
+  // ── حالة التوسيع: تبقى مفتوحة طوال الجلسة بعد أول ضغطة ──
+  const [rootExpanded, setRootExpanded] = useState(() => {
+    return sessionStorage.getItem('mapExpanded') === 'true';
+  });
+
+  const expandRoot = useCallback(() => {
+    setRootExpanded(true);
+    sessionStorage.setItem('mapExpanded', 'true');
+  }, []);
+
   const { nodes, edges } = useMemo(() => {
     if (!masteryMap?.length) return { nodes: [], edges: [] };
 
     const flowNodes: Node[] = [];
     const flowEdges: Edge[] = [];
 
-    // Calculate total height to center the root node
-    const yStart = 0;
-    const yGap = 120;
-    const totalHeight = (masteryMap.length - 1) * yGap;
-    const rootY = totalHeight / 2;
+    // ═══ الحالة 1: الجذر وحده في الوسط ═══
+    if (!rootExpanded) {
+      flowNodes.push({
+        id: 'root',
+        type: 'root',
+        position: { x: 0, y: 0 },
+        data: { label: 'الطاقة في\nالتفاعلات الكيميائية' },
+        draggable: false,
+      });
+      return { nodes: flowNodes, edges: flowEdges };
+    }
 
-    // Root node on the right side
-    const rootId = 'root';
-    flowNodes.push({
-      id: rootId,
-      type: 'root',
-      position: { x: 1050, y: rootY }, // Moved further right
-      data: { titleAr: 'الطاقة في التفاعلات\nالكيميائية' },
+    // ═══ الحالة 2: كل العقد الرئيسية ظاهرة ═══
+    const COLLAPSED_GAP = 140;
+    const EXPANDED_GAP  = 300;
+    const rootX  = 50;
+    const topicX = 400;
+    const subX   = 780;
+
+    let currentY = 0;
+    const positions: { y: number; expanded: boolean }[] = [];
+    masteryMap.forEach((n: any) => {
+      const expanded = n.status === 'IN_PROGRESS' || n.status === 'COMPLETED';
+      positions.push({ y: currentY, expanded });
+      currentY += expanded ? EXPANDED_GAP : COLLAPSED_GAP;
     });
 
-    const branchX = 400; // Moved further left to increase spacing
+    const lastPos = positions[positions.length - 1];
+    const totalHeight = lastPos ? lastPos.y : 0;
+
+    flowNodes.push({
+      id: 'root',
+      type: 'root',
+      position: { x: rootX, y: totalHeight / 2 - 25 },
+      data: { label: 'الطاقة في\nالتفاعلات الكيميائية' },
+      draggable: false,
+    });
 
     masteryMap.forEach((n: any, i: number) => {
-      const y = yStart + i * yGap;
+      const order = n.order ?? (i + 1);
+      const topicY = positions[i].y;
+      const isExpanded = positions[i].expanded;
 
-      // Branch node
       flowNodes.push({
-        id: n.nodeId,
-        type: 'branch',
-        position: { x: branchX, y },
+        id: n.nodeId, type: 'topic',
+        position: { x: topicX, y: topicY },
         data: n,
       });
 
-      // Edge from root to branch
-      const strokeColor = n.status === 'COMPLETED' ? '#10B981' : n.status === 'IN_PROGRESS' ? '#3B82F6' : '#94A3B8';
+      const strokeColor = n.status === 'COMPLETED' ? '#10B981' : n.status === 'IN_PROGRESS' ? '#3B82F6' : '#94a3b8';
+
       flowEdges.push({
-        id: `e-root-${n.nodeId}`,
-        source: rootId,
-        target: n.nodeId,
-        sourceHandle: 'left-source',
-        targetHandle: 'right-target',
-        type: 'default', // Using default for beautiful bezier curves as requested
+        id: `root-${n.nodeId}`,
+        source: 'root', target: n.nodeId,
+        sourceHandle: 'r', targetHandle: 'l',
+        type: 'default',
         animated: n.status === 'IN_PROGRESS',
         style: { stroke: strokeColor, strokeWidth: 2 },
-        markerEnd: { type: MarkerType.ArrowClosed, width: 16, height: 16, color: strokeColor },
+      });
+
+      // ── الفرعيات تظهر فقط للعقد المفتوحة (IN_PROGRESS أو COMPLETED) ──
+      if (!isExpanded) return;
+
+      const subs = NODE_SUBS[order] || ['مستوى 1', 'مستوى 2', 'مستوى 3'];
+      const middleSubY = topicY + (TOPIC_H - SUB_H) / 2;
+      const subNodeGap = 20;
+
+      const getSubStatus = (si: number): 'LOCKED' | 'OPEN' | 'COMPLETED' => {
+        if (n.status === 'LOCKED') return 'LOCKED';
+        if (n.status === 'COMPLETED') return 'COMPLETED';
+        if (si === 0) return n.understandingScore >= 100 ? 'COMPLETED' : 'OPEN';
+        if (si === 1) {
+          if (n.understandingScore < 100) return 'LOCKED';
+          return n.applicationScore >= 100 ? 'COMPLETED' : 'OPEN';
+        }
+        if (si === 2) {
+          if (n.applicationScore < 100) return 'LOCKED';
+          return n.reasoningScore >= 100 ? 'COMPLETED' : 'OPEN';
+        }
+        return 'LOCKED';
+      };
+
+      subs.forEach((label, si) => {
+        const sid = `sub-${order}-${si}`;
+        const subStatus = getSubStatus(si);
+
+        let subY: number;
+        if (si === 0) subY = middleSubY - SUB_H - subNodeGap;
+        else if (si === 2) subY = middleSubY + SUB_H + subNodeGap;
+        else subY = middleSubY;
+
+        flowNodes.push({
+          id: sid, type: 'sub',
+          position: { x: subX, y: subY },
+          data: { label, parentNodeId: n.nodeId, levelIndex: si, parentStatus: n.status, subStatus },
+          draggable: false,
+        });
+
+        const subEdgeColor = subStatus === 'COMPLETED' ? '#10b981' : subStatus === 'OPEN' ? '#3b82f6' : '#e2e8f0';
+
+        flowEdges.push({
+          id: `${n.nodeId}-${sid}`,
+          source: n.nodeId, target: sid,
+          sourceHandle: 'r', targetHandle: 'l',
+          type: si === 1 ? 'straight' : 'default',
+          animated: subStatus === 'OPEN',
+          style: { stroke: subEdgeColor, strokeWidth: 1.5 },
+        });
       });
     });
 
     return { nodes: flowNodes, edges: flowEdges };
-  }, [masteryMap]);
+  }, [masteryMap, rootExpanded]);
 
   const onNodeClick = useCallback((_: any, node: Node) => {
-    if (node.type === 'root') return;
-    if (node.data.status !== 'LOCKED') {
-      navigate(`/node/${node.id}`);
+    if (node.type === 'root' && !rootExpanded) {
+      expandRoot();
+      return;
     }
-  }, [navigate]);
+    if (node.type === 'topic' && node.data.status !== 'LOCKED') {
+      navigate(`/node/${node.id}`);
+    } else if (node.type === 'sub' && node.data.subStatus !== 'LOCKED') {
+      navigate(`/node/${node.data.parentNodeId}?content=${node.data.levelIndex}&level=${node.data.levelIndex}`);
+    }
+  }, [navigate, rootExpanded]);
 
   if (isLoading) {
     return (
@@ -165,34 +469,40 @@ export default function ConceptMapPage() {
         <h1 style={{ fontSize: '1.8rem', fontWeight: 800, marginBottom: '8px' }}>
           <span className="gradient-text">الخارطة المفاهيمية</span>
         </h1>
-        <p style={{ color: 'var(--color-text-secondary)' }}>اضغط على أي عقدة مفتوحة لبدء التعلم</p>
+        <p style={{ color: 'var(--color-text-secondary)' }}>
+          {!rootExpanded ? 'اضغط على العقدة المركزية لاستكشاف المفاهيم' : 'اضغط على أي عقدة مفتوحة لبدء التعلم'}
+        </p>
       </div>
 
-      <div className="glass-card" style={{ height: '75vh', overflow: 'hidden' }}>
+      <div className="glass-card" style={{ height: '78vh', overflow: 'hidden' }}>
         <ReactFlow
+          key={rootExpanded ? 'expanded' : 'collapsed'}
           nodes={nodes}
           edges={edges}
           nodeTypes={nodeTypes}
           onNodeClick={onNodeClick}
           fitView
-          fitViewOptions={{ padding: 0.2 }}
+          fitViewOptions={{ padding: rootExpanded ? 0.15 : 0.5 }}
           proOptions={{ hideAttribution: true }}
           style={{ direction: 'ltr' }}
+          minZoom={0.25}
+          maxZoom={1.8}
+          defaultEdgeOptions={{ type: 'default' }}
         >
-          <Background color="var(--color-border)" gap={20} />
+          <Background color="var(--color-border)" gap={28} />
           <Controls />
         </ReactFlow>
       </div>
 
       {/* Legend */}
-      <div style={{ display: 'flex', gap: '24px', marginTop: '16px', justifyContent: 'center' }}>
+      <div style={{ display: 'flex', gap: '24px', marginTop: '14px', justifyContent: 'center' }}>
         {[
-          { color: '#94A3B8', label: 'مغلقة 🔒' },
+          { color: '#94a3b8', label: 'مغلقة 🔒' },
           { color: '#3B82F6', label: 'مفتوحة 🔓' },
           { color: '#10B981', label: 'منجزة ✅' },
         ].map((item) => (
           <div key={item.label} style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <div style={{ width: 16, height: 16, borderRadius: 4, background: item.color }} />
+            <div style={{ width: 14, height: 14, borderRadius: 4, background: item.color }} />
             <span style={{ fontSize: '0.85rem', color: 'var(--color-text-muted)' }}>{item.label}</span>
           </div>
         ))}

@@ -22,6 +22,15 @@ export class AdaptiveController {
     });
   }
 
+  /** تقييم مستوى واحد فقط (عقدة فرعية واحدة) */
+  @Post('evaluate-level')
+  evaluateLevel(
+    @Req() req: any,
+    @Body() body: { nodeId: string; level: 'understanding' | 'application' | 'reasoning'; passed: boolean },
+  ) {
+    return this.adaptiveService.evaluateLevel(req.user.sub, body.nodeId, body.level, body.passed);
+  }
+
   @Get('mastery-map')
   getMasteryMap(@Req() req: any) {
     return this.adaptiveService.getUserMasteryMap(req.user.sub, req.user.role);

@@ -30,6 +30,7 @@ export const useAuthStore = create<AuthState>((set) => ({
       const res = await authApi.login(email, password);
       localStorage.setItem('accessToken', res.accessToken);
       localStorage.setItem('refreshToken', res.refreshToken);
+      sessionStorage.removeItem('mapExpanded');
       set({ user: res.user, isAuthenticated: true, isLoading: false });
     } catch (error) {
       set({ isLoading: false });
@@ -53,6 +54,7 @@ export const useAuthStore = create<AuthState>((set) => ({
   logout: () => {
     localStorage.removeItem('accessToken');
     localStorage.removeItem('refreshToken');
+    sessionStorage.removeItem('mapExpanded');
     set({ user: null, isAuthenticated: false });
     window.location.href = '/';
   },

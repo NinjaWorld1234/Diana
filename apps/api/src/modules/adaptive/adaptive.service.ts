@@ -155,21 +155,11 @@ export class AdaptiveService {
   async getUserMasteryMap(userId: string, role?: string) {
     const isPrivileged = role === 'TEACHER' || role === 'ADMIN';
 
-    let progress = await this.prisma.nodeProgress.findMany({
+    const progress = await this.prisma.nodeProgress.findMany({
       where: { userId },
       include: { node: true },
       orderBy: { node: { order: 'asc' } },
     });
-
-    // Fallback for existing students who never had their progress initialized
-    if (progress.length === 0 && !isPrivileged) {
-      await this.initializeProgress(userId, role);
-      progress = await this.prisma.nodeProgress.findMany({
-        where: { userId },
-        include: { node: true },
-        orderBy: { node: { order: 'asc' } },
-      });
-    }
 
     const nodes = await this.prisma.conceptNode.findMany({
       orderBy: { order: 'asc' },
@@ -281,6 +271,65 @@ export class AdaptiveService {
     });
 
     return progress;
+  }
+
+  /**
+   * Evaluate a single level (sub-node) instead of all 3 at once.
+   * Updates only the specific level score, then checks if all 3 are complete.
+   */
+  async evaluateLevel(
+    userId: string,
+    nodeId: string,
+    level: 'understanding' | 'application' | 'reasoning',
+    passed: boolean,
+  ) {
+    // Get current progress
+    const progress = await this.prisma.nodeProgress.findUnique({
+      where: { userId_nodeId: { userId, nodeId } },
+    });
+
+    const currentScores = {
+      understandingScore: progress?.understandingScore ?? 0,
+      applicationScore: progress?.applicationScore ?? 0,
+      reasoningScore: progress?.reasoningScore ?? 0,
+    };
+
+    // Update the specific level
+    const scoreField = level === 'understanding' ? 'understandingScore'
+                     : level === 'application' ? 'applicationScore'
+                     : 'reasoningScore';
+    const newScore = passed ? 100 : 0;
+    currentScores[scoreField] = newScore;
+
+    // Calculate mastery
+    const masteryScore = (currentScores.understandingScore + currentScores.applicationScore + currentScores.reasoningScore) / 3;
+
+    // Check if all 3 levels are now complete
+    const allComplete = currentScores.understandingScore >= 100
+                     && currentScores.applicationScore >= 100
+                     && currentScores.reasoningScore >= 100;
+
+    await this.updateProgress(userId, nodeId, {
+      ...currentScores,
+      masteryScore,
+      status: allComplete ? 'COMPLETED' : 'IN_PROGRESS',
+    });
+
+    if (allComplete) {
+      await this.unlockNextNode(userId, nodeId);
+    }
+
+    return {
+      level,
+      passed,
+      allComplete,
+      masteryScore,
+      message: !passed
+        ? 'لا بأس! حاول مرة أخرى بعد مراجعة المحتوى.'
+        : allComplete
+          ? 'أحسنت! أتقنت هذه العقدة بالكامل. تم فتح العقدة التالية.'
+          : 'أحسنت! انتقل للعقدة الفرعية التالية.',
+    };
   }
 
   private async unlockNextNode(userId: string, nodeId: string) {
