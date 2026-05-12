@@ -69,8 +69,12 @@ export default function NodePage() {
   });
 
   const { data: questions } = useQuery({
-    queryKey: ['questions', nodeId],
-    queryFn: () => questionsApi.getNodeQuestions(nodeId!),
+    queryKey: ['questions', nodeId, initialLevel === '2' ? 'all' : initialLevel],
+    queryFn: () => {
+      // For level 0 and 1 we don't really need questions, but if we fetch, don't restrict to just level.
+      // For level 2, we must fetch ALL questions to do the full exam.
+      return questionsApi.getNodeQuestions(nodeId!);
+    },
     enabled: !!nodeId,
   });
 
@@ -114,29 +118,6 @@ export default function NodePage() {
       }
     }
   }, [contentIndex, initialLevel, node, questions]);
-
-  const handleUseHint = async () => {
-    if (!hints || hints.length === 0) return;
-    
-    // Find a hint for the current level
-    const currentLevel = phase === 'q-understanding' ? 'UNDERSTANDING' : phase === 'q-application' ? 'APPLICATION' : 'REASONING';
-    const levelHints = hints.filter((h: any) => h.level === currentLevel);
-    if (levelHints.length === 0) return;
-
-    // Pick a random hint for the level
-    const randomHint = levelHints[Math.floor(Math.random() * levelHints.length)];
-    
-    setHintLoading(true);
-    try {
-      await questionsApi.useHint(nodeId!, randomHint.id);
-      setActiveHint(randomHint);
-    } catch (e) {
-      console.error(e);
-    } finally {
-      setHintLoading(false);
-    }
-  };
-
   // Group questions by level
   const questionsByLevel = {
     UNDERSTANDING: questions?.filter((q: any) => q.level === 'UNDERSTANDING') || [],
@@ -202,16 +183,15 @@ export default function NodePage() {
     if (currentQ < currentQuestions.length - 1) {
       setCurrentQ(currentQ + 1);
     } else {
-      // ─── عقدة فرعية واحدة: تقييم مستوى واحد فقط ثم عودة للخارطة ──
-      if (initialLevel !== null) {
+      // ─── التدفق الكامل (الامتحان الشامل في النود الثالثة أو المراجعة العامة) ──
+      if (initialLevel === null || initialLevel === '2') {
+        setCurrentQ(0);
+        if (phase === 'q-understanding') setPhase('q-application');
+        else if (phase === 'q-application') setPhase('q-reasoning');
+        else if (phase === 'q-reasoning') evaluateResults();
+      } else {
         evaluateSingleLevel();
-        return;
       }
-      // ─── التدفق الكامل (من العقدة الرئيسية مباشرة) ──
-      setCurrentQ(0);
-      if (phase === 'q-understanding') setPhase('q-application');
-      else if (phase === 'q-application') setPhase('q-reasoning');
-      else if (phase === 'q-reasoning') evaluateResults();
     }
   };
 
@@ -265,6 +245,10 @@ export default function NodePage() {
     </div>;
   }
 
+  const videosToRender = ((node.videoUrls as any[])?.length > 0)
+    ? (node.videoUrls as any[])
+    : ((node.parent?.videoUrls as any[])?.length > 0 ? (node.parent.videoUrls as any[]) : []);
+
   return (
     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
       {/* Header */}
@@ -296,25 +280,25 @@ export default function NodePage() {
               <button className="btn-secondary" onClick={() => setPhase('q-understanding')}>
                 انتقال للأسئلة مباشرة
               </button>
-              {/* Videos in intro for nodes that have them */}
-              {(node.videoUrls as any[])?.length > 0 && (
-                <div style={{ marginTop: '16px', width: '100%' }}>
-                  {(node.videoUrls as any[]).map((video: any, i: number) => (
-                    <div key={i} className="glass-card" style={{ padding: '16px', marginBottom: '12px' }}>
-                      <h4 style={{ fontSize: '0.95rem', fontWeight: 600, marginBottom: '12px', color: 'var(--color-primary)' }}>🎬 {video.label}</h4>
-                      <div style={{ position: 'relative', paddingBottom: '56.25%', height: 0, overflow: 'hidden', borderRadius: 'var(--radius-sm)' }}>
-                        <iframe 
-                          src={video.url.replace('watch?v=', 'embed/')}
-                          style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', border: 'none' }}
-                          allowFullScreen
-                          title={video.label}
-                        />
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
             </div>
+            {/* Videos in intro for nodes that have them */}
+            {videosToRender.length > 0 && (
+              <div style={{ marginTop: '16px', width: '100%' }}>
+                {videosToRender.map((video: any, i: number) => (
+                  <div key={i} className="glass-card" style={{ padding: '16px', marginBottom: '12px' }}>
+                    <h4 style={{ fontSize: '0.95rem', fontWeight: 600, marginBottom: '12px', color: 'var(--color-primary)' }}>🎬 {video.label}</h4>
+                    <div style={{ position: 'relative', paddingBottom: '56.25%', height: 0, overflow: 'hidden', borderRadius: 'var(--radius-sm)' }}>
+                      <iframe 
+                        src={video.url.replace('watch?v=', 'embed/')}
+                        style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', border: 'none' }}
+                        allowFullScreen
+                        title={video.label}
+                      />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
           </motion.div>
         )}
 
@@ -361,19 +345,49 @@ export default function NodePage() {
                 <p style={{ fontSize: '0.9rem', color: 'var(--color-text-muted)' }}>{img.caption}</p>
               </div>
             ))}
+            {/* Videos in content for nodes that have them */}
+            {videosToRender.length > 0 && (
+              <div style={{ marginTop: '16px', marginBottom: '16px', width: '100%' }}>
+                {videosToRender.map((video: any, i: number) => (
+                  <div key={i} className="glass-card" style={{ padding: '16px', marginBottom: '12px' }}>
+                    <h4 style={{ fontSize: '0.95rem', fontWeight: 600, marginBottom: '12px', color: 'var(--color-primary)' }}>🎬 {video.label}</h4>
+                    <div style={{ position: 'relative', paddingBottom: '56.25%', height: 0, overflow: 'hidden', borderRadius: 'var(--radius-sm)' }}>
+                      <iframe 
+                        src={video.url.replace('watch?v=', 'embed/')}
+                        style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', border: 'none' }}
+                        allowFullScreen
+                        title={video.label}
+                      />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
             <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
-              {initialLevel !== null && (
-                <button className="btn-primary" onClick={() => {
-                  const levelMap: Record<string, Phase> = { '0': 'q-understanding', '1': 'q-application', '2': 'q-reasoning' };
-                  const targetPhase = levelMap[initialLevel];
-                  if (targetPhase) { setCurrentQ(0); setPhase(targetPhase); }
+              {(initialLevel === '0' || initialLevel === '1') && (
+                <button className="btn-primary" onClick={async () => {
+                  try {
+                    const levelStr = initialLevel === '0' ? 'understanding' : 'application';
+                    await adaptiveApi.evaluateLevel(nodeId!, levelStr, true);
+                    queryClient.invalidateQueries({ queryKey: ['mastery-map'] });
+                    navigate('/map');
+                  } catch (e) {
+                    console.error('Failed to mark level as viewed', e);
+                  }
                 }}>
-                  انتقل للسؤال المرتبط <HelpCircle size={16} style={{ marginRight: 6 }} />
+                  أتممت القراءة - المتابعة <ChevronLeft size={18} />
                 </button>
               )}
-              <button className={initialLevel !== null ? "btn-secondary" : "btn-primary"} onClick={() => { setCurrentQ(0); setPhase('q-understanding'); }}>
-                ابدأ التقييم الكامل <ChevronLeft size={18} />
-              </button>
+              {initialLevel === '2' && (
+                <button className="btn-primary" onClick={() => { setCurrentQ(0); setPhase('q-understanding'); }}>
+                  ابدأ الامتحان الشامل <ChevronLeft size={18} />
+                </button>
+              )}
+              {initialLevel === null && (
+                <button className="btn-primary" onClick={() => { setCurrentQ(0); setPhase('q-understanding'); }}>
+                  ابدأ التقييم الكامل <ChevronLeft size={18} />
+                </button>
+              )}
             </div>
           </motion.div>
         )}
@@ -508,16 +522,8 @@ export default function NodePage() {
                     <button className="btn-primary" onClick={handleSubmitAnswer} disabled={!selectedOption} style={{ flex: 1 }}>
                       <HelpCircle size={18} /> تأكيد الإجابة
                     </button>
-                    <button 
-                      className="btn-secondary" 
-                      onClick={handleUseHint} 
-                      disabled={hintLoading || activeHint || hints?.filter((h: any) => h.level === (phase === 'q-understanding' ? 'UNDERSTANDING' : phase === 'q-application' ? 'APPLICATION' : 'REASONING')).length === 0}
-                      style={{ padding: '0 20px' }}
-                    >
-                      <Lightbulb size={18} /> {hintLoading ? '...' : 'تلميح'}
-                    </button>
                   </div>
-                ) : (
+                ) : !remediationChoice && (
                   <button className="btn-primary" onClick={handleNext}>
                     التالي <ChevronLeft size={18} />
                   </button>

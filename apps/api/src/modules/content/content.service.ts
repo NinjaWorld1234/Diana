@@ -32,6 +32,7 @@ export class ContentService {
     return this.prisma.conceptNode.findUnique({
       where: { id },
       include: {
+        parent: true,
         subConcepts: { orderBy: { order: 'asc' } },
         contentChunks: { orderBy: { order: 'asc' } },
         formulas: true,

@@ -10,6 +10,7 @@ import '@xyflow/react/dist/style.css';
 import { motion } from 'framer-motion';
 import { adaptiveApi } from '../lib/api';
 import { Lock, Unlock, CheckCircle, AlertTriangle } from 'lucide-react';
+import { useAuthStore } from '../stores/auth.store';
 
 /* ═══════════════════════════════════════════════
    Layout Constants (pixel-perfect for straight edges)
@@ -308,6 +309,9 @@ const NODE_SUBS: Record<number, string[]> = {
    ═══════════════════════════════════════════════ */
 export default function ConceptMapPage() {
   const navigate = useNavigate();
+  const user = useAuthStore((s) => s.user);
+  const isTeacherOrAdmin = user?.role === 'TEACHER' || user?.role === 'ADMIN';
+
   const { data: masteryMap, isLoading } = useQuery({
     queryKey: ['mastery-map'],
     queryFn: () => adaptiveApi.getMasteryMap(),
@@ -349,10 +353,11 @@ export default function ConceptMapPage() {
     const subX   = 780;
 
     let currentY = 0;
-    const positions: { y: number; expanded: boolean }[] = [];
+    const positions: { y: number; expanded: boolean; effStatus: string }[] = [];
     masteryMap.forEach((n: any) => {
-      const expanded = n.status === 'IN_PROGRESS' || n.status === 'COMPLETED';
-      positions.push({ y: currentY, expanded });
+      const effStatus = (isTeacherOrAdmin && n.status === 'LOCKED') ? 'IN_PROGRESS' : n.status;
+      const expanded = effStatus === 'IN_PROGRESS' || effStatus === 'COMPLETED';
+      positions.push({ y: currentY, expanded, effStatus });
       currentY += expanded ? EXPANDED_GAP : COLLAPSED_GAP;
     });
 
@@ -375,17 +380,17 @@ export default function ConceptMapPage() {
       flowNodes.push({
         id: n.nodeId, type: 'topic',
         position: { x: topicX, y: topicY },
-        data: n,
+        data: { ...n, status: positions[i].effStatus },
       });
 
-      const strokeColor = n.status === 'COMPLETED' ? '#10B981' : n.status === 'IN_PROGRESS' ? '#3B82F6' : '#94a3b8';
+      const strokeColor = positions[i].effStatus === 'COMPLETED' ? '#10B981' : positions[i].effStatus === 'IN_PROGRESS' ? '#3B82F6' : '#94a3b8';
 
       flowEdges.push({
         id: `root-${n.nodeId}`,
         source: 'root', target: n.nodeId,
         sourceHandle: 'r', targetHandle: 'l',
         type: 'default',
-        animated: n.status === 'IN_PROGRESS',
+        animated: positions[i].effStatus === 'IN_PROGRESS',
         style: { stroke: strokeColor, strokeWidth: 2 },
       });
 
@@ -397,6 +402,7 @@ export default function ConceptMapPage() {
       const subNodeGap = 20;
 
       const getSubStatus = (si: number): 'LOCKED' | 'OPEN' | 'COMPLETED' => {
+        if (isTeacherOrAdmin) return 'OPEN';
         if (n.status === 'LOCKED') return 'LOCKED';
         if (n.status === 'COMPLETED') return 'COMPLETED';
         if (si === 0) return n.understandingScore >= 100 ? 'COMPLETED' : 'OPEN';

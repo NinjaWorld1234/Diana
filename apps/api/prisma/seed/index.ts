@@ -312,7 +312,7 @@ async function main() {
       { textAr: 'ارتفاع درجة الحرارة', isCorrect: false, explanationAr: 'صحيح جزئياً لكن ليس الإجابة الأكمل.' },
       { textAr: 'ظهور ضوء', isCorrect: false },
       { textAr: 'جميع ما ذُكر', isCorrect: true },
-      { textAr: 'تغير لون المحلول فقط', isCorrect: false },
+      { textAr: 'انتاج طاقة كهربائية', isCorrect: false },
     ],
   );
 
