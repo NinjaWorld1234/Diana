@@ -16,7 +16,7 @@ p.unit.count().then(c => {
 
 if [ "$NEEDS_SEED" = "yes" ]; then
   echo "🌱 Seeding database with initial data..."
-  node dist/prisma/seed/index.js
+  pnpm run db:seed
   echo "✅ Seed complete!"
 else
   echo "✅ Data already exists, skipping seed."
