@@ -26,6 +26,6 @@ echo "🚀 Starting API server..."
 cd /app
 
 echo "🖼️ Syncing missing images/figures to database..."
-pnpm --filter api run db:sync-figures || echo "⚠️ Sync figures skipped/failed, continuing..."
+node dist/prisma/seed/sync-figures.js || echo "⚠️ Sync figures skipped/failed, continuing..."
 
-exec node apps/api/dist/src/main.js
+exec node apps/api/dist/main.js
