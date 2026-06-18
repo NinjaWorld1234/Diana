@@ -94,7 +94,6 @@ export const progressApi = {
   getNodeProgress: (nodeId: string) => api.get<any>(`/progress/node/${nodeId}`),
   updateTimeSpent: (nodeId: string, seconds: number) =>
     api.post('/progress/time', { nodeId, seconds }),
-  useHint: (nodeId: string) => api.post('/progress/hint', { nodeId }),
   getAchievements: () => api.get<any[]>('/progress/achievements'),
 };
 
@@ -111,7 +110,10 @@ export const calculatorApi = {
   bondEnergy: (brokenBonds: any[], formedBonds: any[], mode?: string) =>
     api.post<any>('/calculator/bond-energy', { brokenBonds, formedBonds, mode }),
   thermalEquation: (data: any) => api.post<any>('/calculator/thermal-equation', data),
-  combustionHeat: (fuel: string) => api.post<any>('/calculator/combustion-heat', { fuel }),
+  combustionHeat: (fuel: string, massGrams?: number) => api.post<any>('/calculator/combustion-heat', { fuel, massGrams }),
+  calorimetry: (substance: string, mass: number, tempInitial: number, tempFinal: number) =>
+    api.post<any>('/calculator/calorimetry', { substance, mass, tempInitial, tempFinal }),
+  hess: (steps: any[]) => api.post<any>('/calculator/hess', { steps }),
   foodCalories: (items: any[]) => api.post<any>('/calculator/food-calories', { items }),
   getReferenceTables: () => api.get<any>('/calculator/tables'),
 };

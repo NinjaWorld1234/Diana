@@ -2,6 +2,7 @@ import { Controller, Post, Get, Body, Param, Query, UseGuards, Req, ForbiddenExc
 import { ApiTags, ApiBearerAuth } from '@nestjs/swagger';
 import { AiTeacherService } from './ai-teacher.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import { ChatDto } from '../../common/dto/api.dto';
 
 @ApiTags('المعلم الذكي')
 @Controller('ai-teacher')
@@ -13,7 +14,7 @@ export class AiTeacherController {
   @Post('chat')
   chat(
     @Req() req: any,
-    @Body() body: { message: string; sessionId?: string; nodeId?: string },
+    @Body() body: ChatDto,
   ) {
     return this.aiTeacherService.chat(
       req.user.sub,

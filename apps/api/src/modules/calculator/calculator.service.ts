@@ -32,6 +32,12 @@ const FOOD_CALORIES: Record<string, number> = {
   'خبز': 2.87, 'عسل': 3.18,
 };
 
+// Specific heat values (J/(g·°C))
+const SPECIFIC_HEATS: Record<string, number> = {
+  'ماء': 4.184, 'حديد': 0.449, 'نحاس': 0.385, 'ألمنيوم': 0.897,
+  'رصاص': 0.128, 'فضة': 0.235, 'ذهب': 0.129, 'زجاج': 0.84,
+};
+
 export type CalcMode = 'compute' | 'guide' | 'verify';
 
 @Injectable()
@@ -109,18 +115,125 @@ export class CalculatorService {
   /**
    * حساب حرارة الاحتراق
    */
-  calculateCombustionHeat(fuel: string, massGrams?: number) {
-    const heatPerMol = COMBUSTION_HEATS[fuel];
-    if (!heatPerMol) {
+  calculateCombustionHeat(fuel: string, massGrams: number = 100) {
+    const matchedKey = Object.keys(COMBUSTION_HEATS).find(k => fuel.includes(k));
+    if (!matchedKey) {
       return { error: 'وقود غير موجود في الجدول', availableFuels: Object.keys(COMBUSTION_HEATS) };
+    }
+    const heatPerMol = COMBUSTION_HEATS[matchedKey];
+
+    // Molar masses and formulas map
+    const FUELS_METADATA: Record<string, { formula: string; molarMass: number }> = {
+      'ميثان': { formula: 'CH₄ + 2O₂ → CO₂ + 2H₂O', molarMass: 16 },
+      'إيثانول': { formula: 'C₂H₅OH + 3O₂ → 2CO₂ + 3H₂O', molarMass: 46 },
+      'بروبان': { formula: 'C₃H₈ + 5O₂ → 3CO₂ + 4H₂O', molarMass: 44 },
+      'بيوتان': { formula: 'C₄H₁₀ + 6.5O₂ → 4CO₂ + 5H₂O', molarMass: 58 },
+      'هيدروجين': { formula: '2H₂ + O₂ → 2H₂O', molarMass: 2 },
+      'كربون': { formula: 'C + O₂ → CO₂', molarMass: 12 },
+    };
+
+    const metadata = FUELS_METADATA[matchedKey] ?? { formula: `${matchedKey} + O₂ → Products`, molarMass: 30 };
+    const moles = massGrams / metadata.molarMass;
+    const totalEnergy = moles * -heatPerMol; // Combustion is exothermic (negative deltaH)
+    const energyPerGram = -heatPerMol / metadata.molarMass;
+
+    const steps = [
+      `📌 حساب حرارة الاحتراق`,
+      ``,
+      `━━━ الخطوة 1: معادلة الاحتراق ━━━`,
+      `   ${metadata.formula}`,
+      `   ΔH = -${heatPerMol} kJ/mol`,
+      ``,
+      `━━━ الخطوة 2: حساب عدد المولات ━━━`,
+      `   الكتلة المولية = ${metadata.molarMass} g/mol`,
+      `   عدد المولات = ${massGrams} ÷ ${metadata.molarMass} = ${moles.toFixed(3)} mol`,
+      ``,
+      `━━━ الخطوة 3: حساب الطاقة الكلية ━━━`,
+      `   Q = ${moles.toFixed(3)} × (-${heatPerMol}) = ${totalEnergy.toFixed(2)} kJ`,
+      `   الطاقة لكل غرام = ${energyPerGram.toFixed(2)} kJ/g`,
+    ];
+
+    return {
+      value: parseFloat(totalEnergy.toFixed(2)),
+      unit: 'kJ',
+      label: 'Q (احتراق)',
+      steps,
+    };
+  }
+
+  /**
+   * حساب المسعر الحراري (Q = mcΔT)
+   */
+  calculateCalorimetry(substance: string, mass: number, tempInitial: number, tempFinal: number) {
+    const c = SPECIFIC_HEATS[substance] ?? 4.184;
+    const deltaT = tempFinal - tempInitial;
+    const Q = mass * c * deltaT;
+
+    const steps = [
+      `📌 القانون: Q = m × c × ΔT`,
+      ``,
+      `━━━ الخطوة 1: تحديد المعطيات ━━━`,
+      `   المادة: ${substance}`,
+      `   الكتلة (m) = ${mass} g`,
+      `   الحرارة النوعية (c) = ${c} J/(g·°C)`,
+      `   درجة الحرارة الابتدائية = ${tempInitial} °C`,
+      `   درجة الحرارة النهائية = ${tempFinal} °C`,
+      ``,
+      `━━━ الخطوة 2: حساب التغيّر في درجة الحرارة ━━━`,
+      `   ΔT = ${tempFinal} − ${tempInitial} = ${deltaT} °C`,
+      ``,
+      `━━━ الخطوة 3: تطبيق القانون ━━━`,
+      `   Q = ${mass} × ${c} × ${deltaT}`,
+      `   Q = ${Q.toFixed(2)} J = ${(Q / 1000).toFixed(3)} kJ`,
+    ];
+
+    if (Q > 0) {
+      steps.push(`   ▸ الحرارة مكتسبة (المادة تسخن) 🔥`);
+    } else if (Q < 0) {
+      steps.push(`   ▸ الحرارة مفقودة (المادة تبرد) ❄️`);
+    } else {
+      steps.push(`   ▸ لا يوجد تغيّر في الحرارة`);
     }
 
     return {
-      fuel,
-      heatPerMol,
-      fuelValues: FUEL_VALUES,
-      combustionHeats: COMBUSTION_HEATS,
-      unit: 'kJ/mol',
+      value: parseFloat(Q.toFixed(2)),
+      unit: 'J',
+      label: 'Q',
+      steps,
+    };
+  }
+
+  /**
+   * حساب قانون هس (جمع المعادلات)
+   */
+  calculateHess(stepsList: { equation: string; deltaH: number; multiplier: number; reverse: boolean }[]) {
+    const steps: string[] = [
+      '📌 قانون هِس: ΔH الكلي = مجموع ΔH لكل خطوة (مع مراعاة الضرب والعكس)',
+      '',
+    ];
+
+    let total = 0;
+    stepsList.forEach((s, i) => {
+      let adjusted = s.deltaH * s.multiplier;
+      if (s.reverse) adjusted = -adjusted;
+      total += adjusted;
+      steps.push(`━━━ الخطوة ${i + 1} ━━━`);
+      steps.push(`   المعادلة: ${s.equation}`);
+      steps.push(`   ΔH الأصلي = ${s.deltaH} kJ`);
+      if (s.reverse) steps.push(`   ⇄ عكس الاتجاه → ΔH = ${-s.deltaH} kJ`);
+      if (s.multiplier !== 1) steps.push(`   × ${s.multiplier} → ΔH = ${adjusted} kJ`);
+      steps.push(`   ▸ المساهمة = ${adjusted.toFixed(1)} kJ`);
+      steps.push('');
+    });
+
+    steps.push('━━━ النتيجة الكلية ━━━');
+    steps.push(`   ΔH = ${total.toFixed(1)} kJ`);
+
+    return {
+      value: parseFloat(total.toFixed(1)),
+      unit: 'kJ',
+      label: 'ΔH (هِس)',
+      steps,
     };
   }
 
@@ -187,6 +300,7 @@ export class CalculatorService {
       combustionHeats: COMBUSTION_HEATS,
       fuelValues: FUEL_VALUES,
       foodCalories: FOOD_CALORIES,
+      specificHeats: SPECIFIC_HEATS,
     };
   }
 }

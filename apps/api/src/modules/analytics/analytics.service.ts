@@ -33,16 +33,22 @@ export class AnalyticsService {
       take: 5
     });
 
-    const problematicNodes = await Promise.all(problematicNodesRaw.map(async (p) => {
-      const node = await this.prisma.conceptNode.findUnique({ where: { id: p.nodeId }, select: { titleAr: true } });
+    const nodeIds = problematicNodesRaw.map(p => p.nodeId);
+    const nodes = await this.prisma.conceptNode.findMany({
+      where: { id: { in: nodeIds } },
+      select: { id: true, titleAr: true }
+    });
+    const nodesMap = new Map(nodes.map(n => [n.id, n.titleAr]));
+
+    const problematicNodes = problematicNodesRaw.map((p) => {
       return {
         nodeId: p.nodeId,
-        titleAr: node?.titleAr || 'Unknown',
+        titleAr: nodesMap.get(p.nodeId) || 'Unknown',
         avgMastery: p._avg.masteryScore,
         avgAttempts: p._avg.attemptsCount,
         studentCount: p._count.userId
       };
-    }));
+    });
 
     const recentEvents = await this.prisma.analyticsEvent.findMany({
       take: 10,
@@ -122,9 +128,15 @@ export class AnalyticsService {
     };
   }
 
-  /** All users with role, activity stats */
-  async getAdminUsersList() {
+  /** All users with role, activity stats - Optimized to resolve N+1 query bug */
+  async getAdminUsersList(page: number = 1, limit: number = 50) {
+    const skip = (page - 1) * limit;
+    
+    const totalCount = await this.prisma.user.count();
+
     const users = await this.prisma.user.findMany({
+      skip,
+      take: limit,
       select: {
         id: true, name: true, email: true, role: true, isActive: true, createdAt: true,
         _count: {
@@ -138,36 +150,93 @@ export class AnalyticsService {
       orderBy: { createdAt: 'desc' },
     });
 
-    // For each user, get additional stats
-    return Promise.all(users.map(async (u) => {
-      const completedNodes = await this.prisma.nodeProgress.count({
-        where: { userId: u.id, status: 'COMPLETED' }
-      });
-      const correctAttempts = await this.prisma.questionAttempt.count({
-        where: { userId: u.id, isCorrect: true }
-      });
+    // Fetch aggregates in parallel to avoid N+1 query loops
+    const [completedGroups, correctGroups, sessions, lastActivityGroups] = await Promise.all([
+      this.prisma.nodeProgress.groupBy({
+        by: ['userId'],
+        where: { status: 'COMPLETED' },
+        _count: { id: true },
+      }),
+      this.prisma.questionAttempt.groupBy({
+        by: ['userId'],
+        where: { isCorrect: true },
+        _count: { id: true },
+      }),
+      this.prisma.aiSession.findMany({
+        select: {
+          userId: true,
+          _count: {
+            select: {
+              messages: {
+                where: { role: 'user' },
+              },
+            },
+          },
+        },
+      }),
+      this.prisma.questionAttempt.groupBy({
+        by: ['userId'],
+        _max: { createdAt: true },
+      }),
+    ]);
+
+    // Create lookup maps for fast O(1) in-memory resolution
+    const completedNodesMap = new Map<string, number>();
+    for (const g of completedGroups) {
+      completedNodesMap.set(g.userId, g._count.id);
+    }
+
+    const correctAttemptsMap = new Map<string, number>();
+    for (const g of correctGroups) {
+      correctAttemptsMap.set(g.userId, g._count.id);
+    }
+
+    const aiMessagesMap = new Map<string, number>();
+    for (const s of sessions) {
+      const current = aiMessagesMap.get(s.userId) || 0;
+      aiMessagesMap.set(s.userId, current + s._count.messages);
+    }
+
+    const lastActivityMap = new Map<string, Date>();
+    for (const g of lastActivityGroups) {
+      if (g._max.createdAt) {
+        lastActivityMap.set(g.userId, g._max.createdAt);
+      }
+    }
+
+    const data = users.map((u) => {
       const totalAttempts = u._count.attempts;
-      const aiMessageCount = await this.prisma.aiMessage.count({
-        where: { role: 'user', session: { userId: u.id } }
-      });
-      const lastActivity = await this.prisma.questionAttempt.findFirst({
-        where: { userId: u.id },
-        orderBy: { createdAt: 'desc' },
-        select: { createdAt: true },
-      });
+      const completedNodes = completedNodesMap.get(u.id) || 0;
+      const correctAttempts = correctAttemptsMap.get(u.id) || 0;
+      const aiMessageCount = aiMessagesMap.get(u.id) || 0;
+      const lastActivity = lastActivityMap.get(u.id) || null;
 
       return {
-        id: u.id, name: u.name, email: u.email, role: u.role,
-        isActive: u.isActive, createdAt: u.createdAt,
+        id: u.id,
+        name: u.name,
+        email: u.email,
+        role: u.role,
+        isActive: u.isActive,
+        createdAt: u.createdAt,
         completedNodes,
         totalAttempts,
         correctAttempts,
         accuracy: totalAttempts > 0 ? Math.round((correctAttempts / totalAttempts) * 100) : 0,
         aiSessions: u._count.aiSessions,
         aiMessages: aiMessageCount,
-        lastActivity: lastActivity?.createdAt || null,
+        lastActivity,
       };
-    }));
+    });
+
+    return {
+      data,
+      meta: {
+        total: totalCount,
+        page,
+        limit,
+        totalPages: Math.ceil(totalCount / limit),
+      }
+    };
   }
 
   /** AI Teacher detailed analytics */
@@ -179,14 +248,25 @@ export class AnalyticsService {
       this.prisma.aiMessage.count({ where: { role: 'assistant' } }),
     ]);
 
-    // Sessions per day (last 14 days)
+    // Sessions per day (last 14 days) - Fix: Group in-memory by date (YYYY-MM-DD) instead of precise timestamp
     const fourteenDaysAgo = new Date();
     fourteenDaysAgo.setDate(fourteenDaysAgo.getDate() - 14);
-    const dailySessions = await this.prisma.aiSession.groupBy({
-      by: ['createdAt'],
+    
+    const sessionsLast14Days = await this.prisma.aiSession.findMany({
       where: { createdAt: { gte: fourteenDaysAgo } },
-      _count: { id: true },
+      select: { createdAt: true },
     });
+
+    const dailySessionsMap = new Map<string, number>();
+    for (const s of sessionsLast14Days) {
+      const dateStr = s.createdAt.toISOString().split('T')[0];
+      dailySessionsMap.set(dateStr, (dailySessionsMap.get(dateStr) || 0) + 1);
+    }
+
+    const dailySessions = Array.from(dailySessionsMap.entries()).map(([date, count]) => ({
+      date,
+      count,
+    })).sort((a, b) => a.date.localeCompare(b.date));
 
     // Top users by AI usage
     const topAiUsers = await this.prisma.aiSession.groupBy({
@@ -196,14 +276,43 @@ export class AnalyticsService {
       take: 10,
     });
 
-    const topAiUsersDetails = await Promise.all(topAiUsers.map(async (u) => {
-      const user = await this.prisma.user.findUnique({
-        where: { id: u.userId },
-        select: { name: true, email: true, role: true },
-      });
-      const messageCount = await this.prisma.aiMessage.count({
-        where: { role: 'user', session: { userId: u.userId } },
-      });
+    const userIds = topAiUsers.map(u => u.userId);
+    const usersData = await this.prisma.user.findMany({
+      where: { id: { in: userIds } },
+      select: { id: true, name: true, email: true, role: true }
+    });
+    const userMap = new Map(usersData.map(u => [u.id, u]));
+
+    const messagesCountRaw = await this.prisma.aiMessage.groupBy({
+      by: ['sessionId'],
+      where: { role: 'user', session: { userId: { in: userIds } } },
+      _count: { id: true }
+    });
+    // This requires joining session -> user, but since prisma groupBy on relation is limited,
+    // we just fetch count directly grouped by user id using a slightly different approach:
+    const userMessagesRaw = await this.prisma.user.findMany({
+      where: { id: { in: userIds } },
+      select: {
+        id: true,
+        _count: {
+          select: { aiSessions: true }
+        }
+      }
+    }); // Just a fallback if needed, but we'll fetch message count using aiSession
+    
+    // Efficiently get message count per user:
+    const sessions = await this.prisma.aiSession.findMany({
+      where: { userId: { in: userIds } },
+      select: { id: true, userId: true, _count: { select: { messages: { where: { role: 'user' } } } } }
+    });
+    const msgCountMap = new Map();
+    for (const s of sessions) {
+      msgCountMap.set(s.userId, (msgCountMap.get(s.userId) || 0) + s._count.messages);
+    }
+
+    const topAiUsersDetails = topAiUsers.map((u) => {
+      const user = userMap.get(u.userId);
+      const messageCount = msgCountMap.get(u.userId) || 0;
       return {
         userId: u.userId,
         name: user?.name || 'مجهول',
@@ -212,7 +321,7 @@ export class AnalyticsService {
         sessions: u._count.id,
         messages: messageCount,
       };
-    }));
+    });
 
     // Recent AI questions (last 20)
     const recentQuestions = await this.prisma.aiMessage.findMany({
@@ -228,16 +337,26 @@ export class AnalyticsService {
       },
     });
 
+    const qUserIds = [...new Set(recentQuestions.map(q => q.session.userId))];
+    const qNodeIds = [...new Set(recentQuestions.map(q => q.session.nodeId).filter(Boolean) as string[])];
+
+    const [qUsers, qNodes] = await Promise.all([
+      this.prisma.user.findMany({ where: { id: { in: qUserIds } }, select: { id: true, name: true } }),
+      this.prisma.conceptNode.findMany({ where: { id: { in: qNodeIds } }, select: { id: true, titleAr: true } })
+    ]);
+
+    const qUserMap = new Map(qUsers.map(u => [u.id, u.name]));
+    const qNodeMap = new Map(qNodes.map(n => [n.id, n.titleAr]));
+
     // Enrich recent questions with user/node names
-    const enrichedQuestions = await Promise.all(recentQuestions.map(async (q) => {
-      const user = await this.prisma.user.findUnique({ where: { id: q.session.userId }, select: { name: true } });
+    const enrichedQuestions = recentQuestions.map((q) => {
+      const userName = qUserMap.get(q.session.userId);
       let nodeName = 'سؤال عام';
       if (q.session.nodeId) {
-        const node = await this.prisma.conceptNode.findUnique({ where: { id: q.session.nodeId }, select: { titleAr: true } });
-        nodeName = node?.titleAr || 'سؤال عام';
+        nodeName = qNodeMap.get(q.session.nodeId) || 'سؤال عام';
       }
-      return { id: q.id, content: q.content.substring(0, 120), userName: user?.name || 'مجهول', nodeName, createdAt: q.createdAt };
-    }));
+      return { id: q.id, content: q.content.substring(0, 120), userName: userName || 'مجهول', nodeName, createdAt: q.createdAt };
+    });
 
     // Sessions by node (which topics get most questions)
     const sessionsByNode = await this.prisma.aiSession.groupBy({
@@ -248,20 +367,32 @@ export class AnalyticsService {
       take: 11,
     });
 
-    const topTopics = await Promise.all(sessionsByNode.map(async (s) => {
-      const node = s.nodeId ? await this.prisma.conceptNode.findUnique({
-        where: { id: s.nodeId }, select: { titleAr: true }
-      }) : null;
-      const msgCount = await this.prisma.aiMessage.count({
-        where: { role: 'user', session: { nodeId: s.nodeId } },
-      });
+    const tNodeIds = sessionsByNode.map(s => s.nodeId).filter(Boolean) as string[];
+    const tNodes = await this.prisma.conceptNode.findMany({
+      where: { id: { in: tNodeIds } },
+      select: { id: true, titleAr: true }
+    });
+    const tNodeMap = new Map(tNodes.map(n => [n.id, n.titleAr]));
+
+    const nodeMsgSessions = await this.prisma.aiSession.findMany({
+      where: { nodeId: { in: tNodeIds } },
+      select: { nodeId: true, _count: { select: { messages: { where: { role: 'user' } } } } }
+    });
+    const nodeMsgCountMap = new Map();
+    for (const s of nodeMsgSessions) {
+      if (s.nodeId) {
+        nodeMsgCountMap.set(s.nodeId, (nodeMsgCountMap.get(s.nodeId) || 0) + s._count.messages);
+      }
+    }
+
+    const topTopics = sessionsByNode.map((s) => {
       return {
         nodeId: s.nodeId,
-        title: node?.titleAr || 'سؤال عام',
+        title: s.nodeId ? tNodeMap.get(s.nodeId) || 'سؤال عام' : 'سؤال عام',
         sessions: s._count.id,
-        messages: msgCount,
+        messages: s.nodeId ? nodeMsgCountMap.get(s.nodeId) || 0 : 0,
       };
-    }));
+    });
 
     // Average messages per session
     const avgMessagesPerSession = totalSessions > 0 ? Math.round(totalQuestions / totalSessions * 10) / 10 : 0;
@@ -271,6 +402,7 @@ export class AnalyticsService {
       topUsers: topAiUsersDetails,
       topTopics,
       recentQuestions: enrichedQuestions,
+      dailySessions,
     };
   }
 }

@@ -1,4 +1,4 @@
-import { Controller, Get, UseGuards } from '@nestjs/common';
+import { Controller, Get, UseGuards, Query } from '@nestjs/common';
 import { ApiTags, ApiBearerAuth, ApiOperation } from '@nestjs/swagger';
 import { AnalyticsService } from './analytics.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
@@ -37,8 +37,10 @@ export class AnalyticsController {
   @Get('admin/users')
   @Roles('ADMIN')
   @ApiOperation({ summary: 'قائمة جميع المستخدمين مع إحصائياتهم (المدير فقط)' })
-  getAdminUsersList() {
-    return this.analyticsService.getAdminUsersList();
+  getAdminUsersList(@Query('page') page?: string, @Query('limit') limit?: string) {
+    const pageNumber = parseInt(page || '1', 10);
+    const limitNumber = parseInt(limit || '50', 10);
+    return this.analyticsService.getAdminUsersList(pageNumber, limitNumber);
   }
 
   @Get('admin/ai-stats')

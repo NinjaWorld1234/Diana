@@ -11,7 +11,7 @@ export class CalculatorController {
   @Post('bond-energy')
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
-  calculateBondEnergy(
+  async calculateBondEnergy(
     @Req() req: any,
     @Body() body: {
       brokenBonds: { bond: string; count: number }[];
@@ -24,14 +24,14 @@ export class CalculatorController {
       body.formedBonds,
       body.mode || 'compute',
     );
-    this.calculatorService.saveRun(req.user.sub, 'BOND_ENERGY', body, result);
+    await this.calculatorService.saveRun(req.user.sub, 'BOND_ENERGY', body, result);
     return result;
   }
 
   @Post('thermal-equation')
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
-  calculateThermalEquation(
+  async calculateThermalEquation(
     @Req() req: any,
     @Body() body: { moles: number; energyPerMole: number; molarMass?: number; massGrams?: number },
   ) {
@@ -41,33 +41,73 @@ export class CalculatorController {
       body.molarMass,
       body.massGrams,
     );
-    this.calculatorService.saveRun(req.user.sub, 'THERMAL_EQUATION', body, result);
+    await this.calculatorService.saveRun(req.user.sub, 'THERMAL_EQUATION', body, result);
     return result;
   }
 
   @Post('combustion-heat')
-  calculateCombustionHeat(@Body() body: { fuel: string; massGrams?: number }) {
-    return this.calculatorService.calculateCombustionHeat(body.fuel, body.massGrams);
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  async calculateCombustionHeat(
+    @Req() req: any,
+    @Body() body: { fuel: string; massGrams?: number },
+  ) {
+    const result = this.calculatorService.calculateCombustionHeat(body.fuel, body.massGrams ?? 100);
+    await this.calculatorService.saveRun(req.user.sub, 'COMBUSTION_HEAT', body, result);
+    return result;
+  }
+
+  @Post('calorimetry')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  async calculateCalorimetry(
+    @Req() req: any,
+    @Body() body: { substance: string; mass: number; tempInitial: number; tempFinal: number },
+  ) {
+    const result = this.calculatorService.calculateCalorimetry(
+      body.substance,
+      body.mass,
+      body.tempInitial,
+      body.tempFinal,
+    );
+    await this.calculatorService.saveRun(req.user.sub, 'CALORIMETRY', body, result);
+    return result;
+  }
+
+  @Post('hess')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  async calculateHess(
+    @Req() req: any,
+    @Body() body: { steps: { equation: string; deltaH: number; multiplier: number; reverse: boolean }[] },
+  ) {
+    const result = this.calculatorService.calculateHess(body.steps);
+    await this.calculatorService.saveRun(req.user.sub, 'HESS', body, result);
+    return result;
   }
 
   @Post('food-calories')
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
-  calculateFoodCalories(
+  async calculateFoodCalories(
     @Req() req: any,
     @Body() body: { items: { type: string; grams: number }[] },
   ) {
     const result = this.calculatorService.calculateFoodCalories(body.items);
-    this.calculatorService.saveRun(req.user.sub, 'FOOD_CALORIES', body, result);
+    await this.calculatorService.saveRun(req.user.sub, 'FOOD_CALORIES', body, result);
     return result;
   }
 
   @Get('tables')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
   getReferenceTables() {
     return this.calculatorService.getReferenceTables();
   }
 
   @Get('bond-energies')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
   getBondEnergies() {
     return this.calculatorService.getBondEnergyTable();
   }

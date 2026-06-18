@@ -150,6 +150,8 @@ export default function NodePage() {
           const levelHints = (hints || []).filter((h: any) => h.level === currentLevel);
           if (levelHints.length > 0) {
             setActiveHint(levelHints[0]);
+            // Notify backend that a hint was used so the penalty applies
+            questionsApi.useHint(nodeId!, levelHints[0].id).catch(() => {});
           }
           setShowHintOverlay(true);
           setSelectedOption(null);
@@ -195,20 +197,19 @@ export default function NodePage() {
     }
   };
 
-  /** تقييم مستوى واحد فقط (قادم من عقدة فرعية) */
+  /** تقييم مستوى واحد فقط (قادم من عقدة فرعية) — الخادم هو مصدر الحقيقة */
   const evaluateSingleLevel = async () => {
-    const levelMap: Record<string, { key: 'understanding' | 'application' | 'reasoning'; questions: any[] }> = {
-      '0': { key: 'understanding', questions: questionsByLevel.UNDERSTANDING },
-      '1': { key: 'application', questions: questionsByLevel.APPLICATION },
-      '2': { key: 'reasoning', questions: questionsByLevel.REASONING },
+    const levelMap: Record<string, 'understanding' | 'application' | 'reasoning'> = {
+      '0': 'understanding',
+      '1': 'application',
+      '2': 'reasoning',
     };
-    const entry = levelMap[initialLevel!];
-    if (!entry) return;
-
-    const passed = entry.questions.length === 0 || entry.questions.some((q: any) => answers[q.id]?.isCorrect);
+    const levelKey = levelMap[initialLevel!];
+    if (!levelKey) return;
 
     try {
-      const result = await adaptiveApi.evaluateLevel(nodeId!, entry.key, passed);
+      // الخادم يتحقق من الإجابات الفعلية ويحتسب التلميحات — لا نرسل إلا المستوى
+      const result = await adaptiveApi.evaluateLevel(nodeId!, levelKey, true);
       setAdaptiveResult(result);
       // إبطال كاش الخارطة فوراً حتى تظهر العقدة التالية مفتوحة بدون ريفرش
       queryClient.invalidateQueries({ queryKey: ['mastery-map'] });

@@ -2,9 +2,12 @@ import { Controller, Get, Post, Body, Param, Query, UseGuards, Req } from '@nest
 import { ApiTags, ApiBearerAuth } from '@nestjs/swagger';
 import { QuestionsService } from './questions.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import { SubmitAnswerDto, UseHintDto } from '../../common/dto/api.dto';
 
 @ApiTags('الأسئلة')
 @Controller('questions')
+@UseGuards(JwtAuthGuard)
+@ApiBearerAuth()
 export class QuestionsController {
   constructor(private questionsService: QuestionsService) {}
 
@@ -23,11 +26,9 @@ export class QuestionsController {
   }
 
   @Post('submit')
-  @UseGuards(JwtAuthGuard)
-  @ApiBearerAuth()
   submitAnswer(
     @Req() req: any,
-    @Body() body: { questionId: string; selectedOptionId: any; timeSeconds: number },
+    @Body() body: SubmitAnswerDto,
   ) {
     return this.questionsService.submitAnswer(
       req.user.sub,
@@ -43,11 +44,9 @@ export class QuestionsController {
   }
 
   @Post('hints/use')
-  @UseGuards(JwtAuthGuard)
-  @ApiBearerAuth()
   useHint(
     @Req() req: any,
-    @Body() body: { nodeId: string; hintId: string },
+    @Body() body: UseHintDto,
   ) {
     return this.questionsService.useHint(req.user.sub, body.nodeId, body.hintId);
   }

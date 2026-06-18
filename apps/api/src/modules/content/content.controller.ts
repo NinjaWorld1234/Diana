@@ -5,6 +5,8 @@ import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 
 @ApiTags('المحتوى')
 @Controller('content')
+@UseGuards(JwtAuthGuard)
+@ApiBearerAuth()
 export class ContentController {
   constructor(private contentService: ContentService) {}
 

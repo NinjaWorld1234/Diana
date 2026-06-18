@@ -2,6 +2,7 @@ import { Controller, Post, Get, Body, Param, UseGuards, Req } from '@nestjs/comm
 import { ApiTags, ApiBearerAuth } from '@nestjs/swagger';
 import { AdaptiveService } from './adaptive.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import { EvaluateLevelDto } from '../../common/dto/api.dto';
 
 @ApiTags('المحرك التكيفي')
 @Controller('adaptive')
@@ -10,23 +11,12 @@ import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 export class AdaptiveController {
   constructor(private adaptiveService: AdaptiveService) {}
 
-  @Post('evaluate')
-  evaluate(
-    @Req() req: any,
-    @Body() body: { nodeId: string; understanding: boolean; application: boolean; reasoning: boolean },
-  ) {
-    return this.adaptiveService.evaluate(req.user.sub, body.nodeId, {
-      understanding: body.understanding,
-      application: body.application,
-      reasoning: body.reasoning,
-    });
-  }
 
   /** تقييم مستوى واحد فقط (عقدة فرعية واحدة) */
   @Post('evaluate-level')
   evaluateLevel(
     @Req() req: any,
-    @Body() body: { nodeId: string; level: 'understanding' | 'application' | 'reasoning'; passed: boolean },
+    @Body() body: EvaluateLevelDto,
   ) {
     return this.adaptiveService.evaluateLevel(req.user.sub, body.nodeId, body.level, body.passed);
   }

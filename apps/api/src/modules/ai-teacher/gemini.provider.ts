@@ -32,7 +32,11 @@ export class GeminiProvider {
     if (dbKeys.length === 0) {
       const envKey = this.config.get('GEMINI_API_KEY');
       if (envKey && envKey !== 'your-gemini-api-key') {
-        return this.callGemini(envKey, systemPrompt, userMessage, context);
+        try {
+          return await this.callGemini(envKey, systemPrompt, userMessage, context);
+        } catch (error: any) {
+          this.logger.warn(`Fallback env Gemini API key failed: ${error.message || error}. Using mock response.`);
+        }
       }
       return this.mockResponse(userMessage);
     }

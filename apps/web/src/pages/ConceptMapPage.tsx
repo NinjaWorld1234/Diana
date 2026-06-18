@@ -9,14 +9,14 @@ import {
 import '@xyflow/react/dist/style.css';
 import { motion } from 'framer-motion';
 import { adaptiveApi } from '../lib/api';
-import { Lock, Unlock, CheckCircle, AlertTriangle } from 'lucide-react';
+import { Lock, Unlock, CheckCircle, AlertTriangle, ChevronDown, ChevronUp } from 'lucide-react';
 import { useAuthStore } from '../stores/auth.store';
 
 /* ═══════════════════════════════════════════════
-   Layout Constants (pixel-perfect for straight edges)
+   Layout Constants
    ═══════════════════════════════════════════════ */
-const TOPIC_H = 120;  // ارتفاع العقدة الرئيسية ثابت
-const SUB_H   = 70;   // ارتفاع العقدة الفرعية ثابت
+const TOPIC_H = 120;
+const SUB_H   = 70;
 
 /* ═══════════════════════════════════════════════
    Status Styles
@@ -60,11 +60,13 @@ function RootNodeComponent({ data }: { data: any }) {
 }
 
 /* ═══════════════════════════════════════════════
-   Topic Node — 10 main concept nodes (clickable)
+   Topic Node — main concept nodes (click to expand/collapse)
    ═══════════════════════════════════════════════ */
 function TopicNodeComponent({ data }: { data: any }) {
   const s = STATUS_STYLES[data.status] || STATUS_STYLES.LOCKED;
   const Icon = s.icon;
+  const isExpanded = data.isExpanded;
+  const isLocked = data.status === 'LOCKED';
 
   return (
     <div style={{
@@ -80,23 +82,23 @@ function TopicNodeComponent({ data }: { data: any }) {
       background: s.bg,
       border: `2px solid ${data.color || s.border}`,
       opacity: s.opacity,
-      cursor: data.status !== 'LOCKED' ? 'pointer' : 'not-allowed',
+      cursor: isLocked ? 'not-allowed' : 'pointer',
       transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
       direction: 'rtl',
       textAlign: 'center',
       position: 'relative',
       color: s.text,
-      boxShadow: data.status === 'IN_PROGRESS' 
-        ? `0 10px 25px ${data.color || '#3b82f6'}30` 
+      boxShadow: data.status === 'IN_PROGRESS'
+        ? `0 10px 25px ${data.color || '#3b82f6'}30`
         : (data.status === 'COMPLETED' ? s.shadow : '0 2px 8px rgba(0,0,0,0.04)'),
     }}
     onMouseEnter={(e) => {
-      if (data.status !== 'LOCKED') {
+      if (!isLocked) {
         (e.currentTarget as HTMLDivElement).style.transform = 'translateY(-3px)';
       }
     }}
     onMouseLeave={(e) => {
-      if (data.status !== 'LOCKED') {
+      if (!isLocked) {
         (e.currentTarget as HTMLDivElement).style.transform = 'translateY(0)';
       }
     }}
@@ -117,10 +119,26 @@ function TopicNodeComponent({ data }: { data: any }) {
         </div>
       )}
 
+      {/* Expand/Collapse indicator for unlocked nodes */}
+      {!isLocked && (
+        <div style={{
+          position: 'absolute', top: -8, left: -8,
+          background: isExpanded ? '#6366f1' : '#3b82f6',
+          borderRadius: '50%',
+          width: 22, height: 22,
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          boxShadow: '0 2px 6px rgba(59, 130, 246, 0.4)',
+          border: '2px solid #fff',
+          transition: 'all 0.3s ease',
+        }}>
+          {isExpanded ? <ChevronUp size={13} color="#fff" /> : <ChevronDown size={13} color="#fff" />}
+        </div>
+      )}
+
       <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '8px' }}>
-        <div style={{ 
-          background: `${data.color || s.border}15`, 
-          padding: '8px', 
+        <div style={{
+          background: `${data.color || s.border}15`,
+          padding: '8px',
           borderRadius: '10px',
           color: data.color || s.border
         }}>
@@ -147,14 +165,13 @@ function TopicNodeComponent({ data }: { data: any }) {
 }
 
 /* ═══════════════════════════════════════════════
-   Sub-concept Leaf Node (descriptive question title)
+   Sub-concept Leaf Node
    ═══════════════════════════════════════════════ */
 function SubConceptNodeComponent({ data }: { data: any }) {
-  const subStatus = data.subStatus || 'LOCKED'; // 'LOCKED' | 'OPEN' | 'COMPLETED'
+  const subStatus = data.subStatus || 'LOCKED';
   const isLocked = subStatus === 'LOCKED';
   const isCompleted = subStatus === 'COMPLETED';
-  
-  // 0 = الفهم (أزرق)، 1 = التطبيق (أخضر)، 2 = الاستدلال (بنفسجي)
+
   const colors = [
     { bg: '#eff6ff', border: '#bfdbfe', hoverBg: '#dbeafe', hoverBorder: '#60a5fa', text: '#1e40af', icon: '📖', shadow: 'rgba(59, 130, 246, 0.15)' },
     { bg: '#f0fdfa', border: '#bfe8e5', hoverBg: '#ccfbf1', hoverBorder: '#2dd4bf', text: '#0f766e', icon: '⚙️', shadow: 'rgba(20, 184, 166, 0.15)' },
@@ -190,20 +207,20 @@ function SubConceptNodeComponent({ data }: { data: any }) {
       position: 'relative',
       overflow: 'hidden'
     }}
-    onMouseEnter={(e) => { 
+    onMouseEnter={(e) => {
       if (!isLocked) {
         const el = e.currentTarget as HTMLDivElement;
-        el.style.background = c.hoverBg; 
-        el.style.borderColor = c.hoverBorder; 
+        el.style.background = c.hoverBg;
+        el.style.borderColor = c.hoverBorder;
         el.style.transform = 'translateY(-2px) scale(1.02)';
         el.style.boxShadow = `0 8px 20px ${c.shadow}`;
       }
     }}
-    onMouseLeave={(e) => { 
+    onMouseLeave={(e) => {
       if (!isLocked) {
         const el = e.currentTarget as HTMLDivElement;
-        el.style.background = c.bg; 
-        el.style.borderColor = c.border; 
+        el.style.background = c.bg;
+        el.style.borderColor = c.border;
         el.style.transform = 'translateY(0) scale(1)';
         el.style.boxShadow = `0 4px 12px ${c.shadow}`;
       }
@@ -238,65 +255,54 @@ const nodeTypes = {
 };
 
 /* ═══════════════════════════════════════════════
-   Sub-node titles — مستمدة من أسئلة بنك الأسئلة
-   كل عقدة فرعية = سؤال فعلي (فهم، تطبيق، استدلال)
+   Sub-node titles
    ═══════════════════════════════════════════════ */
 const NODE_SUBS: Record<number, string[]> = {
-  // العقدة 1: تغيرات الطاقة
   1: [
     'ما المقصود بتغير الطاقة في التفاعل؟',
     'ما الدليل على حدوث تغير في الطاقة؟',
     'ماذا نستنتج من ظهور ضوء وحرارة؟',
   ],
-  // العقدة 2: الطارد والماص
   2: [
     'هل انخفاض الحرارة يعني تفاعلاً طارداً؟',
     'أي التفاعلات التالية طاردة للطاقة؟',
     'ماذا نستنتج إذا احتاج تفاعل تسخيناً مستمراً؟',
   ],
-  // العقدة 3: التغير ΔH
   3: [
     'متى تكون ΔH سالبة؟',
     'ما اتجاه انتقال الطاقة عند ΔH سالبة؟',
     'الفرق بين الطارد والماص بيانياً',
   ],
-  // العقدة 4: المعادلة الحرارية
   4: [
     'ما المقصود بالمعادلة الكيميائية الحرارية؟',
     'ماذا تعني ΔH = -572 KJ في معادلة الماء؟',
     'الإشارة السالبة والموجبة في ΔH',
   ],
-  // العقدة 5: طاقة الرابطة
   5: [
     'هل كسر الروابط يحتاج أم يطلق طاقة؟',
     'ماذا نستنتج عن رابطة ذات طاقة كبيرة؟',
     'العلاقة بين قوة الرابطة وطاقتها',
   ],
-  // العقدة 6: حساب حرارة التفاعل
   6: [
     'ماذا نستنتج إذا كانت المكسورة > المتكونة؟',
     'رتب خطوات حساب حرارة التفاعل',
     'التعويض في قانون ΔH بالأمثلة',
   ],
-  // العقدة 7: الحسابات بالمعادلة
   7: [
     'ماذا يحدث للطاقة عند تضاعف المولات؟',
     'اسحب كل مصطلح إلى تعريفه الصحيح',
     'حساب الطاقة لكميات مختلفة من المواد',
   ],
-  // العقدة 8: حرارة الاحتراق
   8: [
     'ما المقصود بحرارة الاحتراق؟',
     'أيهما أكبر حرارة احتراق: الميثان أم الإيثان؟',
     'العلاقة بين حرارة الاحتراق والقيمة الحرارية',
   ],
-  // العقدة 9: قيمة الغذاء
   9: [
     'ماذا نعني بالقيمة الحرارية للغذاء؟',
     'حساب الطاقة من كربوهيدرات ودهون',
     'تحويل السعرات الحرارية إلى جول',
   ],
-  // العقدة 10: التطبيقات الحياتية
   10: [
     'كيف ترتبط الكمادات بمفاهيم الطاقة؟',
     'الكمادة الباردة: ماص أم طارد؟',
@@ -317,7 +323,7 @@ export default function ConceptMapPage() {
     queryFn: () => adaptiveApi.getMasteryMap(),
   });
 
-  // ── حالة التوسيع: تبقى مفتوحة طوال الجلسة بعد أول ضغطة ──
+  // ── حالة التوسيع للجذر ──
   const [rootExpanded, setRootExpanded] = useState(() => {
     return sessionStorage.getItem('mapExpanded') === 'true';
   });
@@ -325,6 +331,29 @@ export default function ConceptMapPage() {
   const expandRoot = useCallback(() => {
     setRootExpanded(true);
     sessionStorage.setItem('mapExpanded', 'true');
+  }, []);
+
+  // ── حالة طي/فتح العقد الرئيسية — محفوظة في sessionStorage ──
+  const [expandedTopics, setExpandedTopics] = useState<Set<string>>(() => {
+    try {
+      const saved = sessionStorage.getItem('mapExpandedTopics');
+      return saved ? new Set(JSON.parse(saved)) : new Set();
+    } catch {
+      return new Set();
+    }
+  });
+
+  const toggleTopic = useCallback((nodeId: string) => {
+    setExpandedTopics(prev => {
+      const next = new Set(prev);
+      if (next.has(nodeId)) {
+        next.delete(nodeId);
+      } else {
+        next.add(nodeId);
+      }
+      sessionStorage.setItem('mapExpandedTopics', JSON.stringify([...next]));
+      return next;
+    });
   }, []);
 
   const { nodes, edges } = useMemo(() => {
@@ -345,20 +374,21 @@ export default function ConceptMapPage() {
       return { nodes: flowNodes, edges: flowEdges };
     }
 
-    // ═══ الحالة 2: كل العقد الرئيسية ظاهرة ═══
+    // ═══ الحالة 2: العقد الرئيسية ظاهرة (الفرعية مطوية حتى يُضغط عليها) ═══
     const COLLAPSED_GAP = 140;
     const EXPANDED_GAP  = 300;
     const rootX  = 50;
     const topicX = 400;
     const subX   = 780;
 
+    // حساب المواقع — كل عقدة رئيسية تأخذ مساحة أكبر إذا كانت موسعة
     let currentY = 0;
-    const positions: { y: number; expanded: boolean; effStatus: string }[] = [];
+    const positions: { y: number; isUserExpanded: boolean; effStatus: string }[] = [];
     masteryMap.forEach((n: any) => {
       const effStatus = (isTeacherOrAdmin && n.status === 'LOCKED') ? 'IN_PROGRESS' : n.status;
-      const expanded = effStatus === 'IN_PROGRESS' || effStatus === 'COMPLETED';
-      positions.push({ y: currentY, expanded, effStatus });
-      currentY += expanded ? EXPANDED_GAP : COLLAPSED_GAP;
+      const isUserExpanded = expandedTopics.has(n.nodeId) && effStatus !== 'LOCKED';
+      positions.push({ y: currentY, isUserExpanded, effStatus });
+      currentY += isUserExpanded ? EXPANDED_GAP : COLLAPSED_GAP;
     });
 
     const lastPos = positions[positions.length - 1];
@@ -375,27 +405,28 @@ export default function ConceptMapPage() {
     masteryMap.forEach((n: any, i: number) => {
       const order = n.order ?? (i + 1);
       const topicY = positions[i].y;
-      const isExpanded = positions[i].expanded;
+      const isUserExpanded = positions[i].isUserExpanded;
+      const effStatus = positions[i].effStatus;
 
       flowNodes.push({
         id: n.nodeId, type: 'topic',
         position: { x: topicX, y: topicY },
-        data: { ...n, status: positions[i].effStatus },
+        data: { ...n, status: effStatus, isExpanded: isUserExpanded },
       });
 
-      const strokeColor = positions[i].effStatus === 'COMPLETED' ? '#10B981' : positions[i].effStatus === 'IN_PROGRESS' ? '#3B82F6' : '#94a3b8';
+      const strokeColor = effStatus === 'COMPLETED' ? '#10B981' : effStatus === 'IN_PROGRESS' ? '#3B82F6' : '#94a3b8';
 
       flowEdges.push({
         id: `root-${n.nodeId}`,
         source: 'root', target: n.nodeId,
         sourceHandle: 'r', targetHandle: 'l',
         type: 'default',
-        animated: positions[i].effStatus === 'IN_PROGRESS',
+        animated: effStatus === 'IN_PROGRESS',
         style: { stroke: strokeColor, strokeWidth: 2 },
       });
 
-      // ── الفرعيات تظهر فقط للعقد المفتوحة (IN_PROGRESS أو COMPLETED) ──
-      if (!isExpanded) return;
+      // ── الفرعيات تظهر فقط إذا ضغط المستخدم على العقدة الرئيسية ──
+      if (!isUserExpanded) return;
 
       const subs = NODE_SUBS[order] || ['مستوى 1', 'مستوى 2', 'مستوى 3'];
       const middleSubY = topicY + (TOPIC_H - SUB_H) / 2;
@@ -403,8 +434,9 @@ export default function ConceptMapPage() {
 
       const getSubStatus = (si: number): 'LOCKED' | 'OPEN' | 'COMPLETED' => {
         if (isTeacherOrAdmin) return 'OPEN';
-        if (n.status === 'LOCKED') return 'LOCKED';
-        if (n.status === 'COMPLETED') return 'COMPLETED';
+        if (effStatus === 'LOCKED') return 'LOCKED';
+        if (effStatus === 'COMPLETED') return 'COMPLETED';
+        // IN_PROGRESS: only first sub-node is active by default, rest locked until previous completes
         if (si === 0) return n.understandingScore >= 100 ? 'COMPLETED' : 'OPEN';
         if (si === 1) {
           if (n.understandingScore < 100) return 'LOCKED';
@@ -429,7 +461,7 @@ export default function ConceptMapPage() {
         flowNodes.push({
           id: sid, type: 'sub',
           position: { x: subX, y: subY },
-          data: { label, parentNodeId: n.nodeId, levelIndex: si, parentStatus: n.status, subStatus },
+          data: { label, parentNodeId: n.nodeId, levelIndex: si, parentStatus: effStatus, subStatus },
           draggable: false,
         });
 
@@ -447,19 +479,23 @@ export default function ConceptMapPage() {
     });
 
     return { nodes: flowNodes, edges: flowEdges };
-  }, [masteryMap, rootExpanded]);
+  }, [masteryMap, rootExpanded, expandedTopics]);
 
   const onNodeClick = useCallback((_: any, node: Node) => {
     if (node.type === 'root' && !rootExpanded) {
       expandRoot();
       return;
     }
+    // ── الضغط على عقدة رئيسية = طي/فتح الفرعيات (بدون تنقل) ──
     if (node.type === 'topic' && node.data.status !== 'LOCKED') {
-      navigate(`/node/${node.id}`);
-    } else if (node.type === 'sub' && node.data.subStatus !== 'LOCKED') {
+      toggleTopic(node.id);
+      return;
+    }
+    // ── الضغط على عقدة فرعية = التنقل للمحتوى/الامتحان ──
+    if (node.type === 'sub' && node.data.subStatus !== 'LOCKED') {
       navigate(`/node/${node.data.parentNodeId}?content=${node.data.levelIndex}&level=${node.data.levelIndex}`);
     }
-  }, [navigate, rootExpanded]);
+  }, [navigate, rootExpanded, toggleTopic]);
 
   if (isLoading) {
     return (
@@ -476,13 +512,15 @@ export default function ConceptMapPage() {
           <span className="gradient-text">الخارطة المفاهيمية</span>
         </h1>
         <p style={{ color: 'var(--color-text-secondary)' }}>
-          {!rootExpanded ? 'اضغط على العقدة المركزية لاستكشاف المفاهيم' : 'اضغط على أي عقدة مفتوحة لبدء التعلم'}
+          {!rootExpanded
+            ? 'اضغط على العقدة المركزية لاستكشاف المفاهيم'
+            : 'اضغط على أي عقدة رئيسية مفتوحة لعرض العقد الفرعية'}
         </p>
       </div>
 
       <div className="glass-card" style={{ height: '78vh', overflow: 'hidden' }}>
         <ReactFlow
-          key={rootExpanded ? 'expanded' : 'collapsed'}
+          key={rootExpanded ? `expanded-${expandedTopics.size}` : 'collapsed'}
           nodes={nodes}
           edges={edges}
           nodeTypes={nodeTypes}

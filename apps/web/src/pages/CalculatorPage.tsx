@@ -1,6 +1,7 @@
 import { useState, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Calculator, Flame, Utensils, Beaker, Link, Thermometer, Play, RotateCcw, ChevronLeft } from 'lucide-react';
+import { calculatorApi } from '../lib/api';
 
 // ─── Reference Data ─────────────────────────
 const BOND_ENERGIES: Record<string, number> = {
@@ -79,13 +80,70 @@ export default function CalculatorPage() {
   const substanceOptions = Object.keys(SPECIFIC_HEATS);
 
   // ─── Calculation Engines ────────────────────
-  const calculate = () => {
-    switch (activeCalc) {
-      case 'bond': calcBond(); break;
-      case 'calorimetry': calcCalorimetry(); break;
-      case 'combustion': calcCombustion(); break;
-      case 'food': calcFood(); break;
-      case 'hess': calcHess(); break;
+  const calculate = async () => {
+    try {
+      let res: any;
+      switch (activeCalc) {
+        case 'bond':
+          res = await calculatorApi.bondEnergy(
+            brokenBonds.map(b => ({ bond: b.bond, count: b.count })),
+            formedBonds.map(b => ({ bond: b.bond, count: b.count })),
+            'guide'
+          );
+          setResult({
+            value: res.deltaH,
+            unit: res.unit,
+            label: 'ΔH',
+            reactionType: res.reactionType,
+            steps: res.steps,
+          });
+          break;
+        case 'calorimetry':
+          res = await calculatorApi.calorimetry(caloData.substance, caloData.mass, caloData.tempInitial, caloData.tempFinal);
+          setResult({
+            value: res.value,
+            unit: res.unit,
+            label: res.label,
+            steps: res.steps,
+          });
+          break;
+        case 'combustion':
+          res = await calculatorApi.combustionHeat(selectedFuel, fuelMass);
+          setResult({
+            value: res.value,
+            unit: res.unit,
+            label: res.label,
+            steps: res.steps,
+          });
+          break;
+        case 'food':
+          res = await calculatorApi.foodCalories(foodItems.map(item => ({ type: item.type, grams: item.grams })));
+          setResult({
+            value: res.totalCalories,
+            unit: res.unit,
+            label: 'السعرات الكلية',
+            steps: res.steps,
+          });
+          break;
+        case 'hess':
+          res = await calculatorApi.hess(hessSteps.map(s => ({ equation: s.equation, deltaH: s.deltaH, multiplier: s.multiplier, reverse: s.reverse })));
+          setResult({
+            value: res.value,
+            unit: res.unit,
+            label: res.label,
+            steps: res.steps,
+          });
+          break;
+      }
+    } catch (error) {
+      console.warn('API calculation failed, falling back to local computation:', error);
+      switch (activeCalc) {
+        case 'bond': calcBond(); break;
+        case 'calorimetry': calcCalorimetry(); break;
+        case 'combustion': calcCombustion(); break;
+        case 'food': calcFood(); break;
+        case 'hess': calcHess(); break;
+      }
     }
     setTimeout(() => resultRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 100);
   };

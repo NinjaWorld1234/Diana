@@ -11,143 +11,12 @@ import { PrismaService } from '../../prisma/prisma.service';
  * 4. ❌ Understanding → Definition/rephrasing + alternative question
  * 5. ❌ Multiple → Support card + review
  */
-export type AdaptiveDecision = {
-  path: 'MASTERY' | 'REMEDIATE_APPLICATION' | 'REMEDIATE_REASONING' | 'REMEDIATE_UNDERSTANDING' | 'FULL_REMEDIATION';
-  nextAction: string;
-  supportType?: string;
-  nextQuestionVariant: string;
-  shouldUnlockNext: boolean;
-  pointsEarned: number;
-  message: string;
-};
+
 
 @Injectable()
 export class AdaptiveService {
   constructor(private prisma: PrismaService) {}
 
-  /**
-   * Evaluate student performance on a node and decide next step
-   */
-  async evaluate(
-    userId: string,
-    nodeId: string,
-    results: {
-      understanding: boolean;
-      application: boolean;
-      reasoning: boolean;
-    },
-  ): Promise<AdaptiveDecision> {
-    const { understanding, application, reasoning } = results;
-
-    // Path 1:全部正解 → Mastery
-    if (understanding && application && reasoning) {
-      await this.updateProgress(userId, nodeId, {
-        understandingScore: 100,
-        applicationScore: 100,
-        reasoningScore: 100,
-        masteryScore: 100,
-        status: 'COMPLETED',
-      });
-      await this.unlockNextNode(userId, nodeId);
-
-      return {
-        path: 'MASTERY',
-        nextAction: 'UNLOCK_NEXT',
-        shouldUnlockNext: true,
-        nextQuestionVariant: 'MASTERY',
-        pointsEarned: 30,
-        message: 'أحسنت! أتقنت هذه العقدة بالكامل. تم فتح العقدة التالية.',
-      };
-    }
-
-    // Path 2: Understanding ✅ + Application ❌
-    if (understanding && !application) {
-      await this.updateProgress(userId, nodeId, {
-        understandingScore: 100,
-        applicationScore: 0,
-        reasoningScore: reasoning ? 100 : 0,
-      });
-
-      return {
-        path: 'REMEDIATE_APPLICATION',
-        nextAction: 'SHOW_WORKED_EXAMPLE',
-        supportType: 'SOLVED_EXAMPLE',
-        shouldUnlockNext: false,
-        nextQuestionVariant: 'ALTERNATIVE',
-        pointsEarned: 5,
-        message: 'فهمك للمفهوم ممتاز! دعنا نراجع التطبيق من خلال مثال محلول.',
-      };
-    }
-
-    // Path 3: Understanding ✅ + Application ✅ + Reasoning ❌
-    if (understanding && application && !reasoning) {
-      await this.updateProgress(userId, nodeId, {
-        understandingScore: 100,
-        applicationScore: 100,
-        reasoningScore: 0,
-      });
-
-      return {
-        path: 'REMEDIATE_REASONING',
-        nextAction: 'SHOW_CAUSAL_HINT',
-        supportType: 'CAUSAL',
-        shouldUnlockNext: false,
-        nextQuestionVariant: 'ALTERNATIVE',
-        pointsEarned: 10,
-        message: 'أداؤك في الفهم والتطبيق رائع! دعنا نعمل على الاستدلال.',
-      };
-    }
-
-    // Path 4: Understanding ❌
-    if (!understanding) {
-      await this.updateProgress(userId, nodeId, {
-        understandingScore: 0,
-        applicationScore: 0,
-        reasoningScore: 0,
-      });
-
-      return {
-        path: 'REMEDIATE_UNDERSTANDING',
-        nextAction: 'SHOW_DEFINITION',
-        supportType: 'DEFINITION',
-        shouldUnlockNext: false,
-        nextQuestionVariant: 'REMEDIAL',
-        pointsEarned: 0,
-        message: 'لا بأس! دعنا نراجع المفهوم بتعريف مبسّط وأمثلة.',
-      };
-    }
-
-    // Path 5: Multiple errors → Full remediation
-    await this.updateProgress(userId, nodeId, {
-      understandingScore: understanding ? 100 : 0,
-      applicationScore: application ? 100 : 0,
-      reasoningScore: reasoning ? 100 : 0,
-    });
-
-    const shouldReview = await this.checkForReview(userId, nodeId);
-    if (shouldReview) {
-      const prevNodeId = await this.lockNodeAndUnlockPrevious(userId, nodeId);
-      return {
-        path: 'FULL_REMEDIATION',
-        nextAction: 'REDIRECT_PREVIOUS',
-        supportType: 'COMPARISON',
-        shouldUnlockNext: false,
-        nextQuestionVariant: 'REMEDIAL',
-        pointsEarned: 0,
-        message: 'يبدو أنك تواجه صعوبة مستمرة في إتقان هذه المهارة. لقد تم إعادة توجيهك للمهارة السابقة للمراجعة.',
-      };
-    }
-
-    return {
-      path: 'FULL_REMEDIATION',
-      nextAction: 'SHOW_SUPPORT_CARD',
-      supportType: 'COMPARISON',
-      shouldUnlockNext: false,
-      nextQuestionVariant: 'REMEDIAL',
-      pointsEarned: 0,
-      message: 'لا تقلق! دعنا نراجع المفهوم من البداية بطريقة مبسطة.',
-    };
-  }
 
   /**
    * Get the current mastery state for a user across all nodes
@@ -229,77 +98,87 @@ export class AdaptiveService {
     }
   }
 
-  private async updateProgress(
-    userId: string,
-    nodeId: string,
-    data: {
-      understandingScore?: number;
-      applicationScore?: number;
-      reasoningScore?: number;
-      masteryScore?: number;
-      status?: string;
-    },
-  ) {
-    const masteryScore = data.masteryScore ??
-      ((data.understandingScore ?? 0) + (data.applicationScore ?? 0) + (data.reasoningScore ?? 0)) / 3;
-
-    const progress = await this.prisma.nodeProgress.upsert({
-      where: { userId_nodeId: { userId, nodeId } },
-      create: {
-        userId,
-        nodeId,
-        status: (data.status as any) ?? 'IN_PROGRESS',
-        understandingScore: data.understandingScore ?? 0,
-        applicationScore: data.applicationScore ?? 0,
-        reasoningScore: data.reasoningScore ?? 0,
-        masteryScore,
-        attemptsCount: 1,
-      },
-      update: {
-        ...(data.status ? { status: data.status as any } : {}),
-        understandingScore: data.understandingScore,
-        applicationScore: data.applicationScore,
-        reasoningScore: data.reasoningScore,
-        masteryScore,
-        attemptsCount: { increment: 1 },
-      },
-    });
-
-    // Create mastery snapshot
-    await this.prisma.masterySnapshot.create({
-      data: { progressId: progress.id, masteryScore },
-    });
-
-    return progress;
-  }
 
   /**
-   * Evaluate a single level (sub-node) instead of all 3 at once.
-   * Updates only the specific level score, then checks if all 3 are complete.
+   * SERVER-AUTHORITATIVE: Evaluate a single level by verifying actual DB attempts.
+   * The backend reads QuestionAttempt records and hintsCount to compute the real score.
+   * The frontend's `passed` parameter is IGNORED — the server is the source of truth.
    */
   async evaluateLevel(
     userId: string,
     nodeId: string,
     level: 'understanding' | 'application' | 'reasoning',
-    passed: boolean,
+    _passed: boolean,  // kept for API compat — ignored internally
   ) {
-    // Get current progress
+    // ──────────────────────────────────────────────────────────────
+    // 1. Fetch real questions for this node + level
+    // ──────────────────────────────────────────────────────────────
+    const levelEnum = level === 'understanding' ? 'UNDERSTANDING'
+                    : level === 'application'   ? 'APPLICATION'
+                    : 'REASONING';
+
+    const levelQuestions = await this.prisma.question.findMany({
+      where: { nodeId, level: levelEnum as any, isActive: true },
+      select: { id: true, points: true },
+    });
+
+    // ──────────────────────────────────────────────────────────────
+    // 2. For each question, find the student's LATEST attempt
+    // ──────────────────────────────────────────────────────────────
+    let totalQuestions = levelQuestions.length;
+    let correctCount = 0;
+
+    if (totalQuestions > 0) {
+      const questionIds = levelQuestions.map((q) => q.id);
+      const attempts = await this.prisma.questionAttempt.findMany({
+        where: {
+          userId,
+          questionId: { in: questionIds },
+        },
+        orderBy: { createdAt: 'desc' },
+      });
+
+      // Latest attempt per question
+      const latestByQuestion = new Map<string, { isCorrect: boolean }>();
+      for (const a of attempts) {
+        if (!latestByQuestion.has(a.questionId)) {
+          latestByQuestion.set(a.questionId, { isCorrect: a.isCorrect });
+        }
+      }
+
+      correctCount = [...latestByQuestion.values()].filter((a) => a.isCorrect).length;
+    }
+
+    // ──────────────────────────────────────────────────────────────
+    // 3. Factor in hints penalty: each hint used costs -5 from the score
+    // ──────────────────────────────────────────────────────────────
     const progress = await this.prisma.nodeProgress.findUnique({
       where: { userId_nodeId: { userId, nodeId } },
     });
+    const hintsUsed = progress?.hintsCount ?? 0;
 
+    // Base score: percentage of correct answers
+    const rawScore = totalQuestions > 0 ? (correctCount / totalQuestions) * 100 : 0;
+    // Penalty: -5 per hint, floored at 0
+    const hintPenalty = hintsUsed * 5;
+    const levelScore = Math.max(0, Math.min(100, rawScore - hintPenalty));
+
+    // Pass threshold: 50% after penalties. If no questions exist, pass automatically to prevent softlock.
+    const passed = totalQuestions === 0 ? true : levelScore >= 50;
+
+    // ──────────────────────────────────────────────────────────────
+    // 4. Compute new aggregate scores (preserve other levels)
+    // ──────────────────────────────────────────────────────────────
     const currentScores = {
       understandingScore: progress?.understandingScore ?? 0,
       applicationScore: progress?.applicationScore ?? 0,
       reasoningScore: progress?.reasoningScore ?? 0,
     };
 
-    // Update the specific level
     const scoreField = level === 'understanding' ? 'understandingScore'
                      : level === 'application' ? 'applicationScore'
                      : 'reasoningScore';
-    const newScore = passed ? 100 : 0;
-    currentScores[scoreField] = newScore;
+    currentScores[scoreField] = passed ? 100 : 0;
 
     // Calculate mastery
     const masteryScore = (currentScores.understandingScore + currentScores.applicationScore + currentScores.reasoningScore) / 3;
@@ -309,69 +188,75 @@ export class AdaptiveService {
                      && currentScores.applicationScore >= 100
                      && currentScores.reasoningScore >= 100;
 
-    await this.updateProgress(userId, nodeId, {
-      ...currentScores,
-      masteryScore,
-      status: allComplete ? 'COMPLETED' : 'IN_PROGRESS',
-    });
+    // ──────────────────────────────────────────────────────────────
+    // 5. Persist inside a transaction for atomicity
+    // ──────────────────────────────────────────────────────────────
+    await this.prisma.$transaction(async (tx) => {
+      await tx.nodeProgress.upsert({
+        where: { userId_nodeId: { userId, nodeId } },
+        create: {
+          userId,
+          nodeId,
+          status: allComplete ? 'COMPLETED' : 'IN_PROGRESS',
+          ...currentScores,
+          masteryScore,
+          attemptsCount: 1,
+        },
+        update: {
+          status: allComplete ? 'COMPLETED' : 'IN_PROGRESS',
+          ...currentScores,
+          masteryScore,
+          attemptsCount: { increment: 1 },
+        },
+      });
 
-    if (allComplete) {
-      await this.unlockNextNode(userId, nodeId);
-    }
+      // Create mastery snapshot inside the same transaction
+      const prog = await tx.nodeProgress.findUnique({
+        where: { userId_nodeId: { userId, nodeId } },
+      });
+      if (prog) {
+        await tx.masterySnapshot.create({
+          data: { progressId: prog.id, masteryScore },
+        });
+      }
+
+      // If all complete, unlock next node
+      if (allComplete) {
+        const currentNode = await tx.conceptNode.findUnique({ where: { id: nodeId } });
+        if (currentNode) {
+          const nextNode = await tx.conceptNode.findFirst({
+            where: { order: { gt: currentNode.order } },
+            orderBy: { order: 'asc' },
+          });
+          if (nextNode) {
+            await tx.nodeProgress.upsert({
+              where: { userId_nodeId: { userId, nodeId: nextNode.id } },
+              create: { userId, nodeId: nextNode.id, status: 'IN_PROGRESS' },
+              update: {}, // Do not override if already IN_PROGRESS or COMPLETED
+            });
+          }
+        }
+      }
+    });
 
     return {
       level,
       passed,
       allComplete,
       masteryScore,
-      message: !passed
-        ? 'لا بأس! حاول مرة أخرى بعد مراجعة المحتوى.'
-        : allComplete
-          ? 'أحسنت! أتقنت هذه العقدة بالكامل. تم فتح العقدة التالية.'
-          : 'أحسنت! انتقل للعقدة الفرعية التالية.',
+      correctCount,
+      totalQuestions,
+      levelScore: Math.round(levelScore),
+      hintPenalty,
+      message: totalQuestions === 0
+        ? 'تم اجتياز المستوى تلقائياً لعدم وجود أسئلة حالياً.'
+        : (!passed
+          ? `لم تتجاوز هذا المستوى (${Math.round(levelScore)}%). حاول مرة أخرى بعد مراجعة المحتوى.`
+          : allComplete
+            ? 'أحسنت! أتقنت هذه العقدة بالكامل. تم فتح العقدة التالية.'
+            : 'أحسنت! انتقل للعقدة الفرعية التالية.'),
     };
   }
 
-  private async unlockNextNode(userId: string, nodeId: string) {
-    const currentNode = await this.prisma.conceptNode.findUnique({ where: { id: nodeId } });
-    if (!currentNode) return;
 
-    const nextNode = await this.prisma.conceptNode.findFirst({
-      where: { order: { gt: currentNode.order } },
-      orderBy: { order: 'asc' },
-    });
-    if (!nextNode) return;
-
-    await this.prisma.nodeProgress.upsert({
-      where: { userId_nodeId: { userId, nodeId: nextNode.id } },
-      create: { userId, nodeId: nextNode.id, status: 'IN_PROGRESS' },
-      update: { status: 'IN_PROGRESS' },
-    });
-  }
-
-  private async lockNodeAndUnlockPrevious(userId: string, nodeId: string): Promise<string | null> {
-    const currentNode = await this.prisma.conceptNode.findUnique({ where: { id: nodeId } });
-    if (!currentNode) return null;
-
-    const prevNode = await this.prisma.conceptNode.findFirst({
-      where: { order: { lt: currentNode.order } },
-      orderBy: { order: 'desc' },
-    });
-
-    if (!prevNode) return null;
-
-    // Lock current node
-    await this.prisma.nodeProgress.update({
-      where: { userId_nodeId: { userId, nodeId } },
-      data: { status: 'LOCKED', attemptsCount: 0 },
-    });
-
-    // Make previous node in progress
-    await this.prisma.nodeProgress.update({
-      where: { userId_nodeId: { userId, nodeId: prevNode.id } },
-      data: { status: 'IN_PROGRESS' },
-    });
-
-    return prevNode.id;
-  }
 }

@@ -1,5 +1,7 @@
-import { NestFactory } from '@nestjs/core';
+import { NestFactory, HttpAdapterHost } from '@nestjs/core';
 import { ValidationPipe } from '@nestjs/common';
+import { PrismaClientExceptionFilter } from './prisma/prisma-client-exception.filter';
+import { RateLimitGuard } from './common/guards/rate-limit.guard';
 import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
 import { AppModule } from './app.module';
 
@@ -8,6 +10,17 @@ async function bootstrap() {
 
   // Global prefix
   app.setGlobalPrefix('api');
+
+  // Security Headers Middleware (Helmet Alternative)
+  app.getHttpAdapter().getInstance().disable('x-powered-by');
+  app.use((req: any, res: any, next: any) => {
+    res.setHeader('X-Content-Type-Options', 'nosniff');
+    res.setHeader('X-Frame-Options', 'DENY');
+    res.setHeader('X-XSS-Protection', '1; mode=block');
+    res.setHeader('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
+    res.removeHeader('X-Powered-By');
+    next();
+  });
 
   // CORS
   app.enableCors({
@@ -25,6 +38,13 @@ async function bootstrap() {
     }),
   );
 
+  // Global Exception Filter
+  const { httpAdapter } = app.get(HttpAdapterHost);
+  app.useGlobalFilters(new PrismaClientExceptionFilter(httpAdapter));
+
+  // Global Rate Limiting
+  app.useGlobalGuards(new RateLimitGuard());
+
   // Swagger
   const config = new DocumentBuilder()
     .setTitle('الخارطة المفاهيمية التكيفية API')
@@ -40,4 +60,7 @@ async function bootstrap() {
   console.log(`🚀 API running on http://localhost:${port}/api`);
   console.log(`📚 Swagger docs at http://localhost:${port}/api/docs`);
 }
-bootstrap();
+bootstrap().catch((err) => {
+  console.error('❌ Application failed to start:', err);
+  process.exit(1);
+});

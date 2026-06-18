@@ -25,10 +25,6 @@ export class ProgressController {
     return this.progressService.updateTimeSpent(req.user.sub, body.nodeId, body.seconds);
   }
 
-  @Post('hint')
-  useHint(@Req() req: any, @Body() body: { nodeId: string }) {
-    return this.progressService.useHint(req.user.sub, body.nodeId);
-  }
 
   @Get('achievements')
   getAchievements(@Req() req: any) {

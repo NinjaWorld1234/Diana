@@ -14,7 +14,7 @@ export class ProgressService {
 
     const totalNodes = await this.prisma.conceptNode.count();
     const completedNodes = progress.filter((p) => p.status === 'COMPLETED').length;
-    const overallMastery = progress.length > 0
+    const overallMastery = totalNodes > 0
       ? progress.reduce((sum, p) => sum + p.masteryScore, 0) / totalNodes
       : 0;
     const totalTime = progress.reduce((sum, p) => sum + p.timeSpentSeconds, 0);
@@ -48,13 +48,6 @@ export class ProgressService {
     });
   }
 
-  async useHint(userId: string, nodeId: string) {
-    return this.prisma.nodeProgress.upsert({
-      where: { userId_nodeId: { userId, nodeId } },
-      create: { userId, nodeId, status: 'IN_PROGRESS', hintsCount: 1 },
-      update: { hintsCount: { increment: 1 } },
-    });
-  }
 
   async getAchievements(userId: string) {
     return this.prisma.achievement.findMany({

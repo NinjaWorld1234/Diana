@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 
 @Injectable()
@@ -32,7 +32,7 @@ export class QuestionsService {
       where: { id: questionId },
       include: { options: { orderBy: { order: 'asc' } } },
     });
-    if (!question) throw new Error('سؤال غير موجود');
+    if (!question) throw new NotFoundException('سؤال غير موجود');
 
     let isCorrect = false;
     let finalSelectedId: string | null = null;
@@ -53,6 +53,19 @@ export class QuestionsService {
       finalSelectedId = String(selectedOptionId);
     }
 
+    // ── Count how many previous wrong attempts the student had on THIS question ──
+    const previousAttempts = await this.prisma.questionAttempt.count({
+      where: { userId, questionId, isCorrect: false },
+    });
+    const currentStrikeCount = isCorrect ? previousAttempts : previousAttempts + 1;
+
+    // ── Count how many hints the student has used for this node ──
+    const nodeProgress = await this.prisma.nodeProgress.findFirst({
+      where: { userId, nodeId: question.nodeId },
+      select: { hintsCount: true },
+    });
+    const hintsUsedSoFar = nodeProgress?.hintsCount ?? 0;
+
     const attempt = await this.prisma.questionAttempt.create({
       data: {
         userId,
@@ -60,6 +73,8 @@ export class QuestionsService {
         selectedOptionId: finalSelectedId,
         isCorrect,
         timeSeconds,
+        strikeCount: currentStrikeCount,
+        hintsUsed: hintsUsedSoFar,
       },
     });
 
@@ -80,15 +95,43 @@ export class QuestionsService {
     });
   }
 
+  /**
+   * Use a hint — increments hintsCount in nodeProgress (single source of truth).
+   * Verifies if hint was already unlocked by the student to avoid duplicate penalties.
+   */
   async useHint(userId: string, nodeId: string, hintId: string) {
     const hint = await this.prisma.hint.findUnique({ where: { id: hintId } });
-    if (!hint) throw new Error('التلميح غير موجود');
+    if (!hint) throw new NotFoundException('التلميح غير موجود');
 
-    // Increment hint count in progress (upsert to avoid crash if no progress exists)
-    await this.prisma.nodeProgress.upsert({
-      where: { userId_nodeId: { userId, nodeId } },
-      create: { userId, nodeId, status: 'IN_PROGRESS', hintsCount: 1 },
-      update: { hintsCount: { increment: 1 } },
+    await this.prisma.$transaction(async (tx) => {
+      // Check if this hint was already unlocked by this user
+      const alreadyUsed = await tx.analyticsEvent.findFirst({
+        where: {
+          userId,
+          eventType: 'USE_HINT',
+          payloadJson: {
+            equals: { hintId, nodeId },
+          },
+        },
+      });
+
+      if (!alreadyUsed) {
+        // Record the hint usage to prevent future duplicate penalty
+        await tx.analyticsEvent.create({
+          data: {
+            userId,
+            eventType: 'USE_HINT',
+            payloadJson: { hintId, nodeId },
+          },
+        });
+
+        // Increment hint count in progress (upsert to avoid crash if no progress exists)
+        await tx.nodeProgress.upsert({
+          where: { userId_nodeId: { userId, nodeId } },
+          create: { userId, nodeId, status: 'IN_PROGRESS', hintsCount: 1 },
+          update: { hintsCount: { increment: 1 } },
+        });
+      }
     });
 
     return hint;
