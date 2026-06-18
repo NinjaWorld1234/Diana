@@ -3,43 +3,43 @@ import { IsString, IsNotEmpty, IsBoolean, IsIn, IsOptional, IsNumber, Min } from
 export class EvaluateLevelDto {
   @IsString()
   @IsNotEmpty()
-  nodeId: string;
+  nodeId!: string;
 
   @IsString()
   @IsIn(['understanding', 'application', 'reasoning'])
-  level: 'understanding' | 'application' | 'reasoning';
+  level!: 'understanding' | 'application' | 'reasoning';
 
   @IsBoolean()
-  passed: boolean;
+  passed!: boolean;
 }
 
 export class SubmitAnswerDto {
   @IsString()
   @IsNotEmpty()
-  questionId: string;
+  questionId!: string;
 
   @IsNotEmpty()
-  selectedOptionId: string | string[];
+  selectedOptionId!: string | string[];
 
   @IsNumber()
   @Min(0)
-  timeSeconds: number;
+  timeSeconds!: number;
 }
 
 export class UseHintDto {
   @IsString()
   @IsNotEmpty()
-  nodeId: string;
+  nodeId!: string;
 
   @IsString()
   @IsNotEmpty()
-  hintId: string;
+  hintId!: string;
 }
 
 export class ChatDto {
   @IsString()
   @IsNotEmpty()
-  message: string;
+  message!: string;
 
   @IsString()
   @IsOptional()
