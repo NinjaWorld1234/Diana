@@ -24,6 +24,7 @@ RUN pnpm --filter api exec prisma generate
 
 # Build apps
 RUN pnpm --filter api build
+RUN pnpm --filter api exec tsc prisma/seed/index.ts --outDir dist/prisma/seed --esModuleInterop --skipLibCheck || true
 RUN pnpm --filter web build
 
 # ─── API Production Runtime ───
