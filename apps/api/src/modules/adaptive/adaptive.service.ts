@@ -100,97 +100,95 @@ export class AdaptiveService {
 
 
   /**
-   * SERVER-AUTHORITATIVE: Evaluate a single level by verifying actual DB attempts.
-   * The backend reads QuestionAttempt records and hintsCount to compute the real score.
-   * The frontend's `passed` parameter is IGNORED — the server is the source of truth.
+   * Mark a level as read to unlock the next sub-node.
+   * This artificially sets the score to 100 for understanding or application
+   * without affecting the overall mastery score until the final exam.
    */
-  async evaluateLevel(
-    userId: string,
-    nodeId: string,
-    level: 'understanding' | 'application' | 'reasoning',
-    _passed: boolean,  // kept for API compat — ignored internally
-  ) {
-    // ──────────────────────────────────────────────────────────────
-    // 1. Fetch real questions for this node + level
-    // ──────────────────────────────────────────────────────────────
-    const levelEnum = level === 'understanding' ? 'UNDERSTANDING'
-                    : level === 'application'   ? 'APPLICATION'
-                    : 'REASONING';
-
-    const levelQuestions = await this.prisma.question.findMany({
-      where: { nodeId, level: levelEnum as any, isActive: true },
-      select: { id: true, points: true },
-    });
-
-    // ──────────────────────────────────────────────────────────────
-    // 2. For each question, find the student's LATEST attempt
-    // ──────────────────────────────────────────────────────────────
-    let totalQuestions = levelQuestions.length;
-    let correctCount = 0;
-
-    if (totalQuestions > 0) {
-      const questionIds = levelQuestions.map((q) => q.id);
-      const attempts = await this.prisma.questionAttempt.findMany({
-        where: {
-          userId,
-          questionId: { in: questionIds },
-        },
-        orderBy: { createdAt: 'desc' },
-      });
-
-      // Latest attempt per question
-      const latestByQuestion = new Map<string, { isCorrect: boolean }>();
-      for (const a of attempts) {
-        if (!latestByQuestion.has(a.questionId)) {
-          latestByQuestion.set(a.questionId, { isCorrect: a.isCorrect });
-        }
-      }
-
-      correctCount = [...latestByQuestion.values()].filter((a) => a.isCorrect).length;
-    }
-
-    // ──────────────────────────────────────────────────────────────
-    // 3. Factor in hints penalty: each hint used costs -5 from the score
-    // ──────────────────────────────────────────────────────────────
+  async markLevelAsRead(userId: string, nodeId: string, level: 'understanding' | 'application') {
     const progress = await this.prisma.nodeProgress.findUnique({
       where: { userId_nodeId: { userId, nodeId } },
     });
-    const hintsUsed = progress?.hintsCount ?? 0;
 
-    // Base score: percentage of correct answers
-    const rawScore = totalQuestions > 0 ? (correctCount / totalQuestions) * 100 : 0;
-    // Penalty: -5 per hint, floored at 0
-    const hintPenalty = hintsUsed * 5;
-    const levelScore = Math.max(0, Math.min(100, rawScore - hintPenalty));
-
-    // Pass threshold: 50% after penalties. If no questions exist, pass automatically to prevent softlock.
-    const passed = totalQuestions === 0 ? true : levelScore >= 50;
-
-    // ──────────────────────────────────────────────────────────────
-    // 4. Compute new aggregate scores (preserve other levels)
-    // ──────────────────────────────────────────────────────────────
     const currentScores = {
       understandingScore: progress?.understandingScore ?? 0,
       applicationScore: progress?.applicationScore ?? 0,
       reasoningScore: progress?.reasoningScore ?? 0,
     };
 
-    const scoreField = level === 'understanding' ? 'understandingScore'
-                     : level === 'application' ? 'applicationScore'
-                     : 'reasoningScore';
-    currentScores[scoreField] = passed ? 100 : 0;
+    if (level === 'understanding') currentScores.understandingScore = 100;
+    if (level === 'application') currentScores.applicationScore = 100;
 
-    // Calculate mastery
-    const masteryScore = (currentScores.understandingScore + currentScores.applicationScore + currentScores.reasoningScore) / 3;
+    await this.prisma.nodeProgress.upsert({
+      where: { userId_nodeId: { userId, nodeId } },
+      create: {
+        userId,
+        nodeId,
+        status: 'IN_PROGRESS',
+        ...currentScores,
+        masteryScore: progress?.masteryScore ?? 0,
+        attemptsCount: 1,
+      },
+      update: {
+        ...currentScores,
+      },
+    });
 
-    // Check if all 3 levels are now complete
-    const allComplete = currentScores.understandingScore >= 100
-                     && currentScores.applicationScore >= 100
-                     && currentScores.reasoningScore >= 100;
+    return { message: 'تم إكمال القراءة بنجاح', passed: true };
+  }
 
-    // ──────────────────────────────────────────────────────────────
-    // 5. Persist inside a transaction for atomicity
-    // ──────────────────────────────────────────────────────────────
+  /**
+   * Evaluate the entire node exam (Understanding + Application + Reasoning questions).
+   */
+  async evaluateExam(userId: string, nodeId: string) {
+    const allQuestions = await this.prisma.question.findMany({
+      where: { nodeId, isActive: true },
+      select: { id: true, level: true },
+    });
+
+    const questionIds = allQuestions.map((q) => q.id);
+    const attempts = await this.prisma.questionAttempt.findMany({
+      where: { userId, questionId: { in: questionIds } },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    const latestByQuestion = new Map<string, { isCorrect: boolean }>();
+    for (const a of attempts) {
+      if (!latestByQuestion.has(a.questionId)) {
+        latestByQuestion.set(a.questionId, { isCorrect: a.isCorrect });
+      }
+    }
+
+    const calculateLevelScore = (levelEnum: string) => {
+      const qIds = allQuestions.filter((q) => q.level === levelEnum).map((q) => q.id);
+      const total = qIds.length;
+      if (total === 0) return 100; // If no questions, pass by default
+      const correct = qIds.filter((id) => latestByQuestion.get(id)?.isCorrect).length;
+      return (correct / total) * 100;
+    };
+
+    const progress = await this.prisma.nodeProgress.findUnique({
+      where: { userId_nodeId: { userId, nodeId } },
+    });
+    const hintsUsed = progress?.hintsCount ?? 0;
+    const hintPenalty = hintsUsed * 5;
+
+    let understandingRaw = calculateLevelScore('UNDERSTANDING');
+    let applicationRaw = calculateLevelScore('APPLICATION');
+    let reasoningRaw = calculateLevelScore('REASONING');
+
+    // Apply penalty to the total mastery, or per level. For simplicity, we apply to final mastery.
+    const rawMastery = (understandingRaw + applicationRaw + reasoningRaw) / 3;
+    const masteryScore = Math.max(0, Math.min(100, rawMastery - hintPenalty));
+    const passed = masteryScore >= 50;
+
+    const currentScores = {
+      understandingScore: passed ? 100 : Math.max(0, understandingRaw - hintPenalty),
+      applicationScore: passed ? 100 : Math.max(0, applicationRaw - hintPenalty),
+      reasoningScore: passed ? 100 : Math.max(0, reasoningRaw - hintPenalty),
+    };
+
+    const allComplete = passed;
+
     await this.prisma.$transaction(async (tx) => {
       await tx.nodeProgress.upsert({
         where: { userId_nodeId: { userId, nodeId } },
@@ -210,7 +208,6 @@ export class AdaptiveService {
         },
       });
 
-      // Create mastery snapshot inside the same transaction
       const prog = await tx.nodeProgress.findUnique({
         where: { userId_nodeId: { userId, nodeId } },
       });
@@ -220,7 +217,6 @@ export class AdaptiveService {
         });
       }
 
-      // If all complete, unlock next node
       if (allComplete) {
         const currentNode = await tx.conceptNode.findUnique({ where: { id: nodeId } });
         if (currentNode) {
@@ -232,7 +228,7 @@ export class AdaptiveService {
             await tx.nodeProgress.upsert({
               where: { userId_nodeId: { userId, nodeId: nextNode.id } },
               create: { userId, nodeId: nextNode.id, status: 'IN_PROGRESS' },
-              update: {}, // Do not override if already IN_PROGRESS or COMPLETED
+              update: {},
             });
           }
         }
@@ -240,21 +236,13 @@ export class AdaptiveService {
     });
 
     return {
-      level,
       passed,
       allComplete,
-      masteryScore,
-      correctCount,
-      totalQuestions,
-      levelScore: Math.round(levelScore),
+      masteryScore: Math.round(masteryScore),
       hintPenalty,
-      message: totalQuestions === 0
-        ? 'تم اجتياز المستوى تلقائياً لعدم وجود أسئلة حالياً.'
-        : (!passed
-          ? `لم تتجاوز هذا المستوى (${Math.round(levelScore)}%). حاول مرة أخرى بعد مراجعة المحتوى.`
-          : allComplete
-            ? 'أحسنت! أتقنت هذه العقدة بالكامل. تم فتح العقدة التالية.'
-            : 'أحسنت! انتقل للعقدة الفرعية التالية.'),
+      message: passed
+        ? 'أحسنت! لقد اجتزت الامتحان الشامل بنجاح وتم فتح العقدة التالية.'
+        : `لقد حصلت على ${Math.round(masteryScore)}%. يرجى مراجعة المحتوى والمحاولة مرة أخرى.`,
     };
   }
 

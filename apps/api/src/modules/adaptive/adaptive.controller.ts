@@ -12,13 +12,22 @@ export class AdaptiveController {
   constructor(private adaptiveService: AdaptiveService) {}
 
 
-  /** تقييم مستوى واحد فقط (عقدة فرعية واحدة) */
-  @Post('evaluate-level')
-  evaluateLevel(
+  /** إكمال قراءة مستوى فرعي (فهم أو تطبيق) بدون أسئلة */
+  @Post('mark-read')
+  markRead(
     @Req() req: any,
-    @Body() body: EvaluateLevelDto,
+    @Body() body: { nodeId: string; level: 'understanding' | 'application' },
   ) {
-    return this.adaptiveService.evaluateLevel(req.user.sub, body.nodeId, body.level, body.passed);
+    return this.adaptiveService.markLevelAsRead(req.user.sub, body.nodeId, body.level);
+  }
+
+  /** تقييم العقدة بالكامل بعد الانتهاء من جميع الأسئلة */
+  @Post('evaluate-exam')
+  evaluateExam(
+    @Req() req: any,
+    @Body() body: { nodeId: string },
+  ) {
+    return this.adaptiveService.evaluateExam(req.user.sub, body.nodeId);
   }
 
   @Get('mastery-map')

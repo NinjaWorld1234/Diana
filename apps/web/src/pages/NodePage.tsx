@@ -185,57 +185,20 @@ export default function NodePage() {
     if (currentQ < currentQuestions.length - 1) {
       setCurrentQ(currentQ + 1);
     } else {
-      // ─── التدفق الكامل (الامتحان الشامل في النود الثالثة أو المراجعة العامة) ──
-      if (initialLevel === null || initialLevel === '2') {
-        setCurrentQ(0);
-        if (phase === 'q-understanding') setPhase('q-application');
-        else if (phase === 'q-application') setPhase('q-reasoning');
-        else if (phase === 'q-reasoning') evaluateResults();
-      } else {
-        evaluateSingleLevel();
-      }
+      setCurrentQ(0);
+      if (phase === 'q-understanding') setPhase('q-application');
+      else if (phase === 'q-application') setPhase('q-reasoning');
+      else if (phase === 'q-reasoning') evaluateResults();
     }
-  };
-
-  /** تقييم مستوى واحد فقط (قادم من عقدة فرعية) — الخادم هو مصدر الحقيقة */
-  const evaluateSingleLevel = async () => {
-    const levelMap: Record<string, 'understanding' | 'application' | 'reasoning'> = {
-      '0': 'understanding',
-      '1': 'application',
-      '2': 'reasoning',
-    };
-    const levelKey = levelMap[initialLevel!];
-    if (!levelKey) return;
-
-    try {
-      // الخادم يتحقق من الإجابات الفعلية ويحتسب التلميحات — لا نرسل إلا المستوى
-      const result = await adaptiveApi.evaluateLevel(nodeId!, levelKey, true);
-      setAdaptiveResult(result);
-      // إبطال كاش الخارطة فوراً حتى تظهر العقدة التالية مفتوحة بدون ريفرش
-      queryClient.invalidateQueries({ queryKey: ['mastery-map'] });
-    } catch {
-      setAdaptiveResult({ message: 'حدث خطأ في التقييم', passed: false });
-    }
-    setPhase('result');
   };
 
   const evaluateResults = async () => {
-    // Calculate success rate per level (at least 50% correct to pass)
-    const calcPassRate = (levelQuestions: any[]) => {
-      if (levelQuestions.length === 0) return true; // No questions = auto pass
-      const correct = levelQuestions.filter((q: any) => answers[q.id]?.isCorrect).length;
-      return correct / levelQuestions.length >= 0.5;
-    };
-    const understanding = calcPassRate(questionsByLevel.UNDERSTANDING);
-    const application = calcPassRate(questionsByLevel.APPLICATION);
-    const reasoning = calcPassRate(questionsByLevel.REASONING);
-
     try {
-      const result = await adaptiveApi.evaluate(nodeId!, understanding, application, reasoning);
+      const result = await adaptiveApi.evaluateExam(nodeId!);
       setAdaptiveResult(result);
       queryClient.invalidateQueries({ queryKey: ['mastery-map'] });
     } catch {
-      setAdaptiveResult({ path: 'FULL_REMEDIATION', message: 'حدث خطأ في التقييم', pointsEarned: 0 });
+      setAdaptiveResult({ message: 'حدث خطأ في التقييم', passed: false });
     }
     setPhase('result');
   };
@@ -277,9 +240,6 @@ export default function NodePage() {
             <div style={{ display: 'flex', gap: '12px' }}>
               <button className="btn-primary" onClick={() => setPhase('content')}>
                 متابعة المحتوى <ChevronLeft size={18} />
-              </button>
-              <button className="btn-secondary" onClick={() => setPhase('q-understanding')}>
-                انتقال للأسئلة مباشرة
               </button>
             </div>
             {/* Videos in intro for nodes that have them */}
@@ -365,28 +325,25 @@ export default function NodePage() {
               </div>
             )}
             <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
-              {(initialLevel === '0' || initialLevel === '1') && (
+              {(initialLevel === '0' || initialLevel === '1') ? (
                 <button className="btn-primary" onClick={async () => {
                   try {
                     const levelStr = initialLevel === '0' ? 'understanding' : 'application';
-                    await adaptiveApi.evaluateLevel(nodeId!, levelStr, true);
+                    await adaptiveApi.markRead(nodeId!, levelStr);
                     queryClient.invalidateQueries({ queryKey: ['mastery-map'] });
                     navigate('/map');
                   } catch (e) {
-                    console.error('Failed to mark level as viewed', e);
+                    console.error('Failed to mark level as read', e);
                   }
                 }}>
                   أتممت القراءة - المتابعة <ChevronLeft size={18} />
                 </button>
-              )}
-              {initialLevel === '2' && (
-                <button className="btn-primary" onClick={() => { setCurrentQ(0); setPhase('q-understanding'); }}>
+              ) : (
+                <button className="btn-primary" onClick={() => {
+                  setCurrentQ(0);
+                  setPhase('q-understanding');
+                }}>
                   ابدأ الامتحان الشامل <ChevronLeft size={18} />
-                </button>
-              )}
-              {initialLevel === null && (
-                <button className="btn-primary" onClick={() => { setCurrentQ(0); setPhase('q-understanding'); }}>
-                  ابدأ التقييم الكامل <ChevronLeft size={18} />
                 </button>
               )}
             </div>
@@ -559,7 +516,7 @@ export default function NodePage() {
                 </div>
                 <h2 style={{ fontSize: '1.4rem', fontWeight: 700, marginBottom: '12px' }}>
                   {isSuccess
-                    ? (isSingleLevel && !adaptiveResult.allComplete ? 'أحسنت! ✅' : 'تم الإتقان! 🎉')
+                    ? 'تم الإتقان! 🎉'
                     : 'تحتاج مراجعة'}
                 </h2>
                 <p style={{ fontSize: '1.05rem', color: 'var(--color-text-secondary)', lineHeight: 1.8, marginBottom: '8px' }}>

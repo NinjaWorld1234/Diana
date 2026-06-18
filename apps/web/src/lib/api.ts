@@ -80,10 +80,10 @@ export const questionsApi = {
 
 // ─── Adaptive API ───────────────────────────
 export const adaptiveApi = {
-  evaluate: (nodeId: string, understanding: boolean, application: boolean, reasoning: boolean) =>
-    api.post<any>('/adaptive/evaluate', { nodeId, understanding, application, reasoning }),
-  evaluateLevel: (nodeId: string, level: 'understanding' | 'application' | 'reasoning', passed: boolean) =>
-    api.post<any>('/adaptive/evaluate-level', { nodeId, level, passed }),
+  markRead: (nodeId: string, level: 'understanding' | 'application') =>
+    api.post<any>('/adaptive/mark-read', { nodeId, level }),
+  evaluateExam: (nodeId: string) =>
+    api.post<any>('/adaptive/evaluate-exam', { nodeId }),
   getMasteryMap: () => api.get<any[]>('/adaptive/mastery-map'),
   initialize: () => api.post('/adaptive/initialize'),
 };
