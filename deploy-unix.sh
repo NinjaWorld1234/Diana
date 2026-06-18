@@ -10,3 +10,5 @@ cd /data/coolify/applications/sgv1wdh5etlvwx58fle9aecr
 sed -i -E "s/sgv1wdh5etlvwx58fle9aecr_api:[a-f0-9]+/sgv1wdh5etlvwx58fle9aecr_api:$LATEST_COMMIT/g" docker-compose.yaml
 sed -i -E "s/sgv1wdh5etlvwx58fle9aecr_web:[a-f0-9]+/sgv1wdh5etlvwx58fle9aecr_web:$LATEST_COMMIT/g" docker-compose.yaml
 docker compose up -d
+docker network connect coolify api-sgv1wdh5etlvwx58fle9aecr-054808013370 || true
+docker network connect coolify web-sgv1wdh5etlvwx58fle9aecr-054808018900 || true
