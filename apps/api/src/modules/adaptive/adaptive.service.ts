@@ -225,11 +225,16 @@ export class AdaptiveService {
             orderBy: { order: 'asc' },
           });
           if (nextNode) {
-            await tx.nodeProgress.upsert({
-              where: { userId_nodeId: { userId, nodeId: nextNode.id } },
-              create: { userId, nodeId: nextNode.id, status: 'IN_PROGRESS' },
-              update: {},
+            const existing = await tx.nodeProgress.findUnique({
+              where: { userId_nodeId: { userId, nodeId: nextNode.id } }
             });
+            if (!existing || existing.status === 'LOCKED') {
+              await tx.nodeProgress.upsert({
+                where: { userId_nodeId: { userId, nodeId: nextNode.id } },
+                create: { userId, nodeId: nextNode.id, status: 'IN_PROGRESS' },
+                update: { status: 'IN_PROGRESS' },
+              });
+            }
           }
         }
       }
